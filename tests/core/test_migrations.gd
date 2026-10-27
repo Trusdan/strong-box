@@ -88,6 +88,29 @@ func test_step_with_a_script_error_fails_with_its_number() -> void:
 	assert_string_contains(result.message, "no_such_key", false)
 
 
+func test_step_that_only_warns_still_succeeds() -> void:
+	var migrations: StrongboxMigrations = StrongboxMigrations.new()
+	migrations.current_version = 2
+	migrations.register(1, func(body: Dictionary) -> Dictionary:
+		push_warning("stamina missing, used a default")
+		body["stamina"] = 50
+		return body)
+	var result: StrongboxResult = migrations.run({"health": 10}, 1)
+	assert_true(result.ok, "a warning is not a failure: %s" % result)
+	assert_eq(result.value["body"], {"health": 10, "stamina": 50})
+
+
+func test_step_that_pushes_an_error_fails() -> void:
+	var migrations: StrongboxMigrations = StrongboxMigrations.new()
+	migrations.current_version = 2
+	migrations.register(1, func(body: Dictionary) -> Dictionary:
+		push_error("could not convert the inventory")
+		return body)
+	var result: StrongboxResult = migrations.run({"health": 10}, 1)
+	assert_push_error("could not convert the inventory")
+	assert_eq(result.code, StrongboxMigrations.E_MIGRATION_FAILED, "push_error is still a failure")
+
+
 func test_register_refuses_duplicates_and_bad_input() -> void:
 	var migrations: StrongboxMigrations = StrongboxMigrations.new()
 	assert_true(migrations.register(1, func(body: Dictionary) -> Dictionary: return body).ok)

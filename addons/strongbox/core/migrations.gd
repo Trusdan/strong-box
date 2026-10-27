@@ -41,7 +41,10 @@ class _ErrorWatch extends Logger:
 	var first: String = ""
 
 	func _log_error(_function: String, _file: String, _line: int, code: String, rationale: String,
-			_editor_notify: bool, _error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+			_editor_notify: bool, error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		# push_warning() arrives here too; a step that only warns has not failed.
+		if error_type == Logger.ERROR_TYPE_WARNING:
+			return
 		count += 1
 		if first == "":
 			first = rationale if rationale != "" else code
