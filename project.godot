@@ -1,0 +1,18 @@
+; Engine configuration file.
+; Dev and test project for the Strongbox addon. Godot 4.7.x; the pinned patch lives in tools/pins.env.
+
+config_version=5
+
+[application]
+
+config/name="Strongbox"
+config/description="Generic save and load addon for Godot 4."
+config/features=PackedStringArray("4.7")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/gut/plugin.cfg", "res://addons/strongbox/plugin.cfg")
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

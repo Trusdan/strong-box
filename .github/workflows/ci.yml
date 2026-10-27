@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Godot
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source tools/pins.env
+          mkdir -p "$HOME/.local/bin" /tmp/godot-bin
+          curl -fsSL -o /tmp/godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          unzip -q -o /tmp/godot.zip -d /tmp/godot-bin
+          install -m 0755 "/tmp/godot-bin/Godot_v${GODOT_TAG}_linux.x86_64" "$HOME/.local/bin/godot"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/godot" --version
+
+      - name: Import and test
+        run: tools/run_tests.sh
+
+      # Fails if any term from the STRONGBOX_HYGIENE_TERMS secret (one per line,
+      # case-insensitive, fixed string) appears in a line this change adds.
+      # It never prints the terms or the matching lines. Vendored GUT is excluded.
+      - name: Content hygiene
+        if: always()
+        env:
+          HYGIENE_TERMS: ${{ secrets.STRONGBOX_HYGIENE_TERMS }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${HYGIENE_TERMS:-}" ]]; then
+            echo "::warning::STRONGBOX_HYGIENE_TERMS is unset; skipping the content-hygiene check."
+            exit 0
+          fi
+
+          if [[ -n "${BASE_REF:-}" ]]; then
+            range="origin/${BASE_REF}...HEAD"
+          elif [[ -n "${PUSH_BEFORE:-}" && ! "${PUSH_BEFORE}" =~ ^0+$ ]]; then
+            range="${PUSH_BEFORE}..HEAD"
+          else
+            echo "::warning::No base revision to diff against; skipping the content-hygiene check."
+            exit 0
+          fi
+
+          umask 077
+          terms_file="$(mktemp)"
+          added_file="$(mktemp)"
+          trap 'rm -f "$terms_file" "$added_file"' EXIT
+
+          # Trim whitespace and drop empty lines. Never echo the terms.
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            trimmed="${line#"${line%%[![:space:]]*}"}"
+            trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+            if [[ -n "$trimmed" ]]; then
+              printf '%s\n' "$trimmed" >> "$terms_file"
+            fi
+          done <<< "$HYGIENE_TERMS"
+
+          if [[ ! -s "$terms_file" ]]; then
+            echo "::warning::STRONGBOX_HYGIENE_TERMS is empty; skipping the content-hygiene check."
+            exit 0
+          fi
+
+          # Added lines and new file paths only, so removing a term never fails the check.
+          git diff --no-color --unified=0 "$range" -- . ':(exclude)addons/gut' \
+            | grep -E '^\+' > "$added_file" || true
+
+          if grep -F -i -q -f "$terms_file" "$added_file"; then
+            echo "::error::Content hygiene failed: the diff adds a term from the deny-list."
+            exit 1
+          fi
+          echo "Content hygiene passed."
