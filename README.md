@@ -26,6 +26,8 @@ The Godot and GUT versions are pinned in `tools/pins.env`. With that Godot versi
 tools/run_tests.sh
 ```
 
+CI runs the full GUT suite on every pull request and every push to `main`, on both Ubuntu (job `test`) and Windows (job `test-windows`). The content-hygiene check and the editor-load check run on Ubuntu only.
+
 Contributor rules are in [`CLAUDE.md`](CLAUDE.md). How tasks are handed to an AI coding agent is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
 ## License

@@ -9,6 +9,55 @@ permissions:
   contents: read
 
 jobs:
+  # Windows: the full GUT suite only (the hygiene and editor checks run in `test`).
+  test-windows:
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install pinned Godot
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source tools/pins.env
+          bin="$RUNNER_TEMP/godot-bin"
+          mkdir -p "$bin"
+          curl -fsSL -o "$RUNNER_TEMP/godot.zip" \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_win64.exe.zip"
+          7z x -y -o"$bin" "$RUNNER_TEMP/godot.zip" > /dev/null
+          # The _console.exe wrapper gives a console process (stdout and exit codes) and starts
+          # the main exe next to it, so both keep their names and a small shim is the `godot` command.
+          printf '#!/usr/bin/env bash\nexec "%s/Godot_v%s_win64_console.exe" "$@"\n' "$bin" "$GODOT_TAG" > "$bin/godot"
+          chmod +x "$bin/godot"
+          cygpath -w "$bin" >> "$GITHUB_PATH"
+
+      - name: Check Godot version matches the pin
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source tools/pins.env
+          version="$(godot --version | tr -d '\r' | tail -n 1)"
+          echo "godot --version: $version"
+          expected="${GODOT_TAG%-stable}.stable."
+          if [[ "$version" != "$expected"* ]]; then
+            echo "::error::Godot reports ${version}, but tools/pins.env pins ${GODOT_TAG}."
+            exit 1
+          fi
+          echo "::notice title=Godot on Windows::${version} (pinned ${GODOT_TAG})"
+
+      - name: Import and test
+        run: |
+          set -euo pipefail
+          tools/run_tests.sh 2>&1 | tee "$RUNNER_TEMP/gut.log"
+          # Surface GUT's totals as a notice, so the run page shows what ran on Windows.
+          totals="$(tr -d '\r' < "$RUNNER_TEMP/gut.log" | sed 's/\x1b\[[0-9;]*m//g' \
+            | grep -E '^(Scripts|Tests|Passing Tests|Asserts) ' | tr -s ' ' | paste -sd ',' -)"
+          echo "::notice title=GUT on Windows::${totals}"
+
   test:
     runs-on: ubuntu-24.04
     steps:
