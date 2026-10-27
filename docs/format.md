@@ -197,6 +197,57 @@ The scan ignores:
 
 to allow a bare `load(` that only receives paths checked against the game's `res://` allow-list. The marker never allows the always-refused names. It is allowed **only** in `addons/strongbox/state/world_store.gd`, for re-creating spawned scenes. Anywhere else, the scan fails. A new exception must be agreed on its task first, then added to the test's allow-list.
 
+## Crash safety
+
+`StrongboxFileStore` (`addons/strongbox/io/file_store.gd`) writes save files so that a crash, a power cut or a full disk partway through a save never destroys the last good save.
+
+### Write order
+
+`write_atomic(path, text)` writes `<path>` in this order:
+
+1. **Write** `<path>.tmp`, then flush and close it.
+2. **Verify:** read `<path>.tmp` back. It must be byte-identical to the text and unpack with a valid checksum.
+3. **Rotate backups** (with `backup_count = 2`, the default): delete `<path>.bak2`, rename `.bak1` to `.bak2`, then rename `<path>` to `.bak1`. With `backup_count = n`, `.bak1` to `.bak<n-1>` shift up one and `.bak<n>` is deleted.
+4. **Rename** `<path>.tmp` to `<path>`.
+
+If a step fails, `write_atomic` returns `E_WRITE`, `E_VERIFY`, `E_RENAME` or `E_DISK` and stops. If the final rename fails, `.bak1` is moved back to `<path>`. At every point between steps, the previous good save is either still at `<path>` or now at `.bak1`, so `read_verified` can always find it.
+
+### Recovery order
+
+`read_verified(path)` tries `<path>`, then `.bak1`, then `.bak2` (up to `backup_count`), and returns the first one that unpacks cleanly. The result reports:
+
+- `source`: `"main"`, `"bak1"`, `"bak2"` and so on;
+- `failures`: the files that were missing or damaged, each with its error code;
+- the file text and the unpacked save.
+
+If nothing unpacks, it returns `E_NO_VALID_SAVE` with the full failure list.
+
+A leftover `<path>.tmp` is never read. `read_verified` deletes it only if it is **older** than `<path>` (modification times have one-second resolution). A newer one might be an unfinished newer save, and the next `write_atomic` replaces it anyway. Nothing else is ever deleted.
+
+### Platform notes (Godot 4.7.2 source)
+
+- **Linux, macOS and other Unix:** `DirAccess.rename_absolute` is POSIX `rename()` (`drivers/unix/dir_access_unix.cpp`, line 420). It atomically replaces an existing target on the same filesystem. Across filesystems it falls back to copy-and-delete.
+- **Windows:** if the target exists, `DirAccess.rename_absolute` first deletes it, then calls `MoveFileW` (`drivers/windows/dir_access_windows.cpp`, lines 340–346). So replacing a file is **not** atomic there, and a crash between the two calls leaves no file. Strongbox avoids this: step 3 moves the current file to `.bak1` first, so the step 4 rename never has an existing target. The exception is `backup_count = 0`, where the rename does replace the file and Windows has that gap. Keep at least one backup on Windows.
+- **Flushing:** `FileAccess.flush()` calls `fflush()` only, on both platforms (`drivers/unix/file_access_unix.cpp`, line 331; `drivers/windows/file_access_windows.cpp`, line 378). Godot offers no `fsync`. A crash of the game is fully covered, but after a **power cut** the operating system may not yet have written the newest file to disk. The backups are the protection against that.
+
+CI runs on Linux only. The Windows behaviour above comes from Godot's source and has not been tested on Windows.
+
+### Path safety
+
+Every path must resolve, after `simplify_path()`, to a file **inside** `root` (default `user://saves`; tests use their own folder). Paths that leave `root` (`..`), point elsewhere (`user://other/...`, `/tmp/...`), point into `res://`, contain a backslash, or contain a `:` in a relative path are refused with `E_BAD_PATH`. Absolute paths inside `root` are accepted.
+
+### File store error codes
+
+| Code | Meaning |
+| --- | --- |
+| `E_WRITE` | The temp file could not be created or written. |
+| `E_VERIFY` | The temp file did not read back identical, or did not unpack with a valid checksum. |
+| `E_RENAME` | Rotating a backup or renaming the temp file into place failed. |
+| `E_DISK` | The platform reports too little free space (less than twice the file size). |
+| `E_BAD_PATH` | The path is not a file inside `root`. |
+| `E_NO_VALID_SAVE` | Neither the file nor any backup unpacks cleanly. |
+| `E_MISSING` | Only in `read_verified`'s failure list: that file does not exist. |
+
 ## Choices that differ from the original task
 
 These were agreed during review:
