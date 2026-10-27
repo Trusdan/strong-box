@@ -47,9 +47,16 @@ jobs:
             echo "::error::Godot reports ${version}, but tools/pins.env pins ${GODOT_TAG}."
             exit 1
           fi
+          echo "::notice title=Godot on Windows::${version} (pinned ${GODOT_TAG})"
 
       - name: Import and test
-        run: tools/run_tests.sh
+        run: |
+          set -euo pipefail
+          tools/run_tests.sh 2>&1 | tee "$RUNNER_TEMP/gut.log"
+          # Surface GUT's totals as a notice, so the run page shows what ran on Windows.
+          totals="$(tr -d '\r' < "$RUNNER_TEMP/gut.log" | sed 's/\x1b\[[0-9;]*m//g' \
+            | grep -E '^(Scripts|Tests|Passing Tests|Asserts) ' | tr -s ' ' | paste -sd ',' -)"
+          echo "::notice title=GUT on Windows::${totals}"
 
   test:
     runs-on: ubuntu-24.04
