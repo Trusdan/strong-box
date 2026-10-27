@@ -1,0 +1,39 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/fixtures/chest.gd" id="1_r3sp1"]
+[ext_resource type="Script" path="res://tests/fixtures/lever.gd" id="2_wpu31"]
+[ext_resource type="Script" path="res://addons/strongbox/state/persist_component.gd" id="3_jho0t"]
+[ext_resource type="Script" path="res://tests/fixtures/coin.gd" id="4_88145"]
+
+[node name="Cellar" type="Node3D" unique_id=989742932]
+
+[node name="Props" type="Node3D" parent="." unique_id=880074233]
+
+[node name="Chest01" type="Node3D" parent="Props" unique_id=642091212 groups=["strongbox_persist"]]
+script = ExtResource("1_r3sp1")
+
+[node name="Lever" type="Node3D" parent="Props" unique_id=1380582912]
+script = ExtResource("2_wpu31")
+
+[node name="Persist" type="Node" parent="Props/Lever" unique_id=1503826078]
+script = ExtResource("3_jho0t")
+properties = PackedStringArray("on", "angle")
+
+[node name="Coin" type="Node3D" parent="." unique_id=568275157 groups=["strongbox_persist"]]
+script = ExtResource("4_88145")
+
+[node name="Door" type="Node3D" parent="." unique_id=301942047]
+metadata/strongbox_id = "cellar_door"
+
+[node name="Persist" type="Node" parent="Door" unique_id=1109494716]
+script = ExtResource("3_jho0t")
+properties = PackedStringArray("visible")
+
+[node name="Shelf" type="Node3D" parent="." unique_id=675210104]
+
+[node name="Persist" type="Node" parent="Shelf" unique_id=330291020]
+script = ExtResource("3_jho0t")
+persist_id = &"shelf_main"
+properties = PackedStringArray("position")
+
+[node name="Decor" type="Node3D" parent="." unique_id=837442098]
