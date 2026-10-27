@@ -33,6 +33,50 @@ jobs:
       - name: Import and test
         run: tools/run_tests.sh
 
+      # Opens the project in the editor (headless) with the Strongbox and GUT plugins
+      # enabled. Fails on a non-zero exit, on any ERROR / SCRIPT ERROR line, or if
+      # project.godot is not in Godot's own format (the GUI editor would rewrite it).
+      - name: Editor loads plugins without errors
+        run: |
+          set -euo pipefail
+          for cfg in res://addons/strongbox/plugin.cfg res://addons/gut/plugin.cfg; do
+            if ! grep -q -F "\"$cfg\"" project.godot; then
+              echo "::error::$cfg is not enabled under [editor_plugins] in project.godot."
+              exit 1
+            fi
+          done
+
+          log="$(mktemp)"
+          resave="$(mktemp --suffix=.gd)"
+          trap 'rm -f "$log" "$resave"' EXIT
+          set +e
+          godot --headless --editor --path . --quit-after 120 >"$log" 2>&1
+          code=$?
+          set -e
+          cat "$log"
+
+          if [[ "$code" -ne 0 ]]; then
+            echo "::error::The editor exited with code ${code}."
+            exit 1
+          fi
+          # Known noise, ignored on purpose: GUT's editor plugin checks online for a newer
+          # GUT once a day and logs this one ERROR when the request fails or times out.
+          if grep -v -F '[GUT] Could not get version info' "$log" | grep -q -E 'ERROR'; then
+            echo "::error::The editor logged an ERROR while loading the project. See the log above."
+            exit 1
+          fi
+          # The headless editor never saves project.godot, so ask Godot to re-save it in
+          # its own format and fail if that changes the committed file.
+          printf '%s\n' 'extends SceneTree' 'func _init() -> void:' \
+            '	var err: Error = ProjectSettings.save()' '	quit(0 if err == OK else 1)' > "$resave"
+          godot --headless --path . -s "$resave" >/dev/null 2>&1
+          if ! git diff --quiet -- project.godot; then
+            git diff -- project.godot
+            echo "::error::project.godot is not in Godot's own format, so the editor would rewrite it. Commit the formatting shown above."
+            exit 1
+          fi
+          echo "Editor loaded the project and plugins with no errors."
+
       # Fails if any term from the STRONGBOX_HYGIENE_TERMS secret (one per line,
       # case-insensitive, fixed string) appears in a line this change adds.
       # It never prints the terms or the matching lines. Vendored GUT is excluded.

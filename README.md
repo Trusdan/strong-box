@@ -18,6 +18,8 @@ Godot 4.7 or newer. GDScript only: no C# or native code.
 
 ## Development
 
+The root `project.godot` is a small dev and test project for the addon. It enables the Strongbox and GUT plugins and is not part of a release. Its header is Godot's own, so opening the editor does not modify it.
+
 The Godot and GUT versions are pinned in `tools/pins.env`. With that Godot version on `PATH` as `godot`, run the tests with:
 
 ```bash
