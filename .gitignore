@@ -1,0 +1,11 @@
+# Godot editor and import cache
+.godot/
+
+# OS clutter
+.DS_Store
+Thumbs.db
+
+# Never commit save files or other user:// data copied into the repo
+*.sav
+/saves/
+/user_data/
