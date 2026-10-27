@@ -31,3 +31,5 @@ Contributor rules are in [`CLAUDE.md`](CLAUDE.md). How tasks are handed to an AI
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
+
+<!-- TEMPORARY hygiene canary, reverted in the next commit: sb-canary-7f3a -->
