@@ -1,0 +1,21 @@
+// Neutral test pack for the strongbox_wyrd bridge tests: one fact, one quest with two stages,
+// one short scene. Not from any game.
+language 1
+
+facts
+  cellar.lever_pulled : bool stored doc: "Whether the cellar lever was pulled."
+
+quest cellar_chest "The Cellar Chest"
+  start when true
+
+  stage find_lever
+    journal: Find the lever in the cellar. #line:j_cellar_lever
+    -> open_chest when cellar.lever_pulled
+
+  stage open_chest
+    journal: The lever is pulled; open the chest. #line:j_cellar_chest
+    waits_until false
+
+scene cellar.greeting
+  narrator: The cellar is cold and quiet. #line:s_cellar_cold
+  narrator: A chest sits against the far wall. #line:s_cellar_chest

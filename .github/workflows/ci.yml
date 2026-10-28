@@ -58,6 +58,37 @@ jobs:
             | grep -E '^(Scripts|Tests|Passing Tests|Asserts) ' | tr -s ' ' | paste -sd ',' -)"
           echo "::notice title=GUT on Windows::${totals}"
 
+  # The core addon on its own: the optional Wyrd bridge, the vendored Wyrd and their tests are
+  # deleted first, so the core never depends on them.
+  test-core-only:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install pinned Godot
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          source tools/pins.env
+          mkdir -p "$HOME/.local/bin" /tmp/godot-bin
+          curl -fsSL -o /tmp/godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
+          unzip -q -o /tmp/godot.zip -d /tmp/godot-bin
+          install -m 0755 "/tmp/godot-bin/Godot_v${GODOT_TAG}_linux.x86_64" "$HOME/.local/bin/godot"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Remove the Wyrd bridge and vendored Wyrd
+        run: rm -rf addons/strongbox_wyrd addons/wyrd tests/wyrd tests/wyrd_fixtures
+
+      - name: Import and test
+        run: |
+          set -euo pipefail
+          tools/run_tests.sh 2>&1 | tee "$RUNNER_TEMP/gut.log"
+          totals="$(tr -d '\r' < "$RUNNER_TEMP/gut.log" | sed 's/\x1b\[[0-9;]*m//g' \
+            | grep -E '^(Scripts|Tests|Passing Tests|Asserts) ' | tr -s ' ' | paste -sd ',' -)"
+          echo "::notice title=GUT core only::${totals}"
+
   test:
     runs-on: ubuntu-24.04
     steps:
