@@ -1,0 +1,50 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://example/props/chest.gd" id="1_l30ae"]
+[ext_resource type="Script" path="res://example/props/coin.gd" id="2_eniqj"]
+[ext_resource type="Script" path="res://example/props/lever.gd" id="3_237pp"]
+[ext_resource type="Script" path="res://addons/strongbox/state/persist_component.gd" id="4_dqbmh"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_d5hw4"]
+size = Vector2(10, 10)
+
+[sub_resource type="BoxMesh" id="BoxMesh_0jvgf"]
+size = Vector3(1.4, 0.8, 0.9)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_xx4oy"]
+top_radius = 0.25
+bottom_radius = 0.25
+height = 0.05
+
+[sub_resource type="BoxMesh" id="BoxMesh_u7ggk"]
+size = Vector3(0.15, 1.2, 0.15)
+
+[node name="Cellar" type="Node3D" unique_id=287539972]
+
+[node name="Camera" type="Camera3D" parent="." unique_id=1944541016]
+transform = Transform3D(1, 0, 0, 0, 0.88294756, 0.46947157, 0, -0.46947157, 0.88294756, 0, 4, 7)
+
+[node name="Light" type="DirectionalLight3D" parent="." unique_id=1850747031]
+transform = Transform3D(0.8660254, -0.38302222, 0.32139382, 0, 0.64278764, 0.76604444, -0.5, -0.66341394, 0.5566704, 0, 0, 0)
+
+[node name="Floor" type="MeshInstance3D" parent="." unique_id=1953988943]
+mesh = SubResource("PlaneMesh_d5hw4")
+
+[node name="Chest" type="MeshInstance3D" parent="." unique_id=1001871325 groups=["strongbox_persist"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.4, -1)
+mesh = SubResource("BoxMesh_0jvgf")
+script = ExtResource("1_l30ae")
+
+[node name="Coin" type="MeshInstance3D" parent="." unique_id=1449092412 groups=["strongbox_persist"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0.5)
+mesh = SubResource("CylinderMesh_xx4oy")
+script = ExtResource("2_eniqj")
+
+[node name="Lever" type="MeshInstance3D" parent="." unique_id=883884722]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.6, -1)
+mesh = SubResource("BoxMesh_u7ggk")
+script = ExtResource("3_237pp")
+
+[node name="Persist" type="Node" parent="Lever" unique_id=686375203]
+script = ExtResource("4_dqbmh")
+properties = PackedStringArray("pulled")

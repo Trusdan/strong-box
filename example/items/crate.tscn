@@ -1,0 +1,10 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://example/items/crate.gd" id="1_0my3i"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_njbfw"]
+size = Vector3(0.6, 0.6, 0.6)
+
+[node name="Crate" type="MeshInstance3D" unique_id=137959011]
+mesh = SubResource("BoxMesh_njbfw")
+script = ExtResource("1_0my3i")

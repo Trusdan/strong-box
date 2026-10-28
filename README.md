@@ -1,134 +1,168 @@
 # Strongbox
 
-A generic save and load addon for Godot 4.
+A generic save and load addon for Godot 4. Versioned save files, save slots, crash-safe writes, and a world that remembers rooms the player has left.
 
-> **Status: early development (0.0.1).** There is no save logic yet. This repository currently holds the project skeleton, the test runner and CI. Do not use it in a game yet.
+> **Status: 0.0.1, before the first release.** Everything works and is tested on Linux and Windows. The API may still change before 1.0, so every public class is marked `@experimental`.
 
-## Planned features
+## Features
 
-- A versioned save format with a safe serializer: no objects or code are ever created from a save file.
-- Crash-safe writes, rolling backups and recovery from damaged files.
-- Save slots with metadata, a quicksave slot and rotating autosaves.
-- Opt-in persistence for nodes, including the state of scenes that are not currently loaded.
-- Schema migrations, so older saves keep loading after a game changes.
+- **Safe save files.** Versioned JSON with a checksum. Nothing in a save can create an object or run code.
+- **Crash-safe writes.** Every save is written to a temporary file, checked, then swapped in, with rolling backups. A damaged save falls back to its backup.
+- **Slots.** Named slots, a quicksave and a ring of autosaves, with metadata for a load menu and optional thumbnails.
+- **Opt-in saved nodes.** Pick the nodes to save; every other node is ignored.
+- **Rooms you have left.** Opened chests stay open, picked-up items stay gone, and dropped items come back, even after quitting and loading.
+- **Global state** (a player profile, a quest system) through named providers.
+- **Save guards** (for example "no saving during a cutscene").
+- **Migrations**, so old saves keep loading after your game changes.
 
-## Slots
+## Install
 
-`StrongboxSlots` gives a game named save slots, a quicksave and a ring of autosaves. Each slot is a folder under the save root (default `user://saves`):
+1. Copy `addons/strongbox/` into your project's `addons/` folder.
+2. In **Project → Project Settings → Plugins**, enable **Strongbox**.
+3. In **Project → Project Settings → Globals → Autoload**, add `res://addons/strongbox/service/service.gd` with the name **`Strongbox`**. The plugin doesn't add it for you, so your `project.godot` only changes when you choose.
 
-```
-user://saves/<slot_id>/save.json        the save, written crash-safely with backups (.bak1, .bak2)
-user://saves/<slot_id>/meta.json        small metadata for a load menu
-user://saves/<slot_id>/thumb.png        optional thumbnail
-```
+## Quick start (5 minutes)
 
-- **Slot ids** are 1 to 32 characters of `a-z`, `0-9`, `_` and `-`. Anything else is refused with `E_BAD_SLOT`.
-- **`quick`** is the quicksave. **`auto_0` … `auto_<n-1>`** are the autosave ring (`autosave_count`, default 3). `next_autosave_id()` returns the first empty one, otherwise the one written longest ago. The game decides *when* to autosave.
-- **`write(slot_id, text, label = {})`** saves text from `StrongboxEnvelope.pack`, then writes `meta.json`. `label` holds load-menu labels such as `{"location": "Cellar"}`; when it is empty, the save header's `meta` is used.
-- **`list()`** returns every slot's metadata, newest first: `slot_id`, `kind` (`manual`, `quick` or `auto`), `saved_unix`, `playtime_s`, `schema_version`, `game_version`, `label`, `seq` and `damaged`.
-  - It reads only the `meta.json` files, so a load menu stays fast with many slots.
-  - A missing or damaged `meta.json` is rebuilt from the save's header.
-  - A slot whose save cannot be read at all is listed with `damaged: true`, not hidden.
-- **`latest()`** returns the newest slot of any kind (for a "Continue" button), or `{}` when there are none.
-- **`read(slot_id)`** returns the save, falling back to a backup if needed.
-- **`delete(slot_id)`** removes only that slot's folder.
-- **`exists(slot_id)`** tells whether a slot has a save.
-- **`write_thumbnail(slot_id, image)`** stores a PNG scaled down to fit 320×180. **`read_thumbnail(slot_id)`** returns it as an `Image`, or `null`. Thumbnails are optional and never affect the save.
+**1. Make a node savable.** Add it to the group `strongbox_persist` and give it two methods:
 
 ```gdscript
-var slots := StrongboxSlots.new()
-var text: String = StrongboxEnvelope.pack({"room": "Cellar"}, {"location": "Cellar"}).value
-slots.write("slot1", text)
-slots.write(slots.next_autosave_id(), text)
-for entry in slots.list():
-	print(entry["slot_id"], " ", entry["label"].get("location", ""), " ", entry["saved_unix"])
+# chest.gd
+extends Node3D
+
+var opened: bool = false
+
+func persist_capture() -> Dictionary:
+	return {"opened": opened}
+
+func persist_restore(data: Dictionary) -> void:
+	opened = data.get("opened", false)
 ```
 
-## Migrations
+The node keeps the same id in every instance of the scene (its path, unless you set one), so its state comes back to the right node.
 
-Games change their save data over time. `StrongboxMigrations` lets old saves keep loading by upgrading them through small, ordered steps.
-
-- **`current_version`** is the save `schema_version` your game writes now. Bump it whenever the save body changes shape.
-- **`register(from_version, step)`** adds one step. `step` takes the body as a Dictionary and returns the upgraded Dictionary, from `from_version` to `from_version + 1`. Each version can have only one step.
-- **`run(body, from_version)`** applies every step from the save's version up to `current_version`, in order. It works on a deep copy, so `body` is never changed. On success, `result.value` holds:
-  - `body`: the upgraded body;
-  - `version`: the version it's now at;
-  - `report`: one `{"from", "to"}` entry per step applied.
-
-  Running it on a body that is already at `current_version` changes nothing.
-- **`min_supported_version`** is the oldest schema your game still loads. **`validate_chain()`** checks that no step is missing between it and `current_version`. Call it once at start-up, or in a test.
-
-`run` refuses, without changing anything:
-
-| Code | When |
-| --- | --- |
-| `E_SCHEMA_TOO_NEW` | The save is from a newer game version. |
-| `E_SCHEMA_TOO_OLD` | The save is older than `min_supported_version`. |
-| `E_SCHEMA_GAP` | A step between the save's version and `current_version` is not registered. |
-| `E_MIGRATION_FAILED` | A step returned something other than a Dictionary, or hit a script error. The message names the step, for example "schema 2 to 3". |
-
-A script error inside a step is caught, not ignored. In GDScript, a function declared `-> Dictionary` that fails returns an empty Dictionary, and a save body must never be silently emptied that way.
-
-### Worked example
-
-Version 1 stored the player's health as `hp`. Version 2 renamed it to `health`. Version 3 added `stamina`, with a default of 50.
+**2. Tell Strongbox how your game changes scenes**, once at start-up (for example in your main menu or a game autoload):
 
 ```gdscript
-var migrations := StrongboxMigrations.new()
-migrations.current_version = 3
-
-migrations.register(1, func(body: Dictionary) -> Dictionary:
-	body["health"] = body.get("hp", 100)
-	body.erase("hp")
-	return body)
-
-migrations.register(2, func(body: Dictionary) -> Dictionary:
-	body["stamina"] = body.get("stamina", 50)
-	return body)
-
-assert(migrations.validate_chain().ok)
-
-var result := migrations.run({"hp": 80, "room": "Cellar"}, 1)
-# result.value["body"]   == {"health": 80, "room": "Cellar", "stamina": 50}
-# result.value["report"] == [{"from": 1, "to": 2}, {"from": 2, "to": 3}]
+func _ready() -> void:
+	Strongbox.scene_changer = func(scene_key: String) -> Node:
+		get_tree().change_scene_to_file(scene_key)
+		await get_tree().scene_changed
+		return get_tree().current_scene
 ```
 
-Strongbox's own file `format_version` is separate from your `schema_version`. It has its own internal step table, which is empty while the format is at version 1.
-
-## Saving and loading
-
-`StrongboxService` is a Node that ties the pieces together. Add it as an autoload (for example named `Strongbox`) and give it two functions from your game:
-
-- **`scene_changer`** `(scene_key: String) -> Node` changes to a scene in your own way (fades, loading screen) and returns the new scene root once it is ready. It may be a coroutine.
-- **`current_scene_provider`** `() -> Node` returns the current scene root. It defaults to the tree's `current_scene`.
+**3. Save and load:**
 
 ```gdscript
-Strongbox.scene_changer = func(scene_key: String) -> Node:
-	get_tree().change_scene_to_file(scene_key)
-	await get_tree().scene_changed
-	return get_tree().current_scene
-Strongbox.world.spawn_allow_prefixes = PackedStringArray(["res://items/"])
-Strongbox.add_save_guard(&"cutscene", func() -> String:
-	return "a cutscene is playing" if in_cutscene else "")
+var saved: StrongboxResult = Strongbox.save("slot1")
+if not saved.ok:
+	print(StrongboxService.message_for(saved.code))
 
-var saved: StrongboxResult = await Strongbox.save("slot1", {"location": "Cellar"})
 var loaded: StrongboxResult = await Strongbox.load("slot1")
 if not loaded.ok:
 	print(StrongboxService.message_for(loaded.code))
 ```
 
-- **`save(slot_id, label = {})`** checks the guards, stashes the current scene, captures globals, and writes the slot. If it fails, the world store is left as it was.
-- **`load(slot_id)`** does its checks first, before anything in the running game changes:
-  - reads the slot, falling back to a backup;
-  - upgrades the body with `migrations`;
-  - checks the whole body, including spawn paths and each provider's optional `validate` (passed to `Strongbox.register_provider`).
+`save()` returns at once. `load()` waits for your `scene_changer`, so call it with `await`. Every call returns a `StrongboxResult`: `ok`, `value`, a `code` such as `E_NO_SLOT`, and a `message`.
 
-  Only after that does it replace the world store, call `scene_changer`, restore globals in priority order, and restore the scene. `result.value["source"]` says whether a backup was used.
-- **`new_game()`** clears the world store and playtime.
-- **`playtime_s`** counts while the tree is not paused. It is saved in the header and restored on load.
-- **Signals:** `save_started` → `save_finished(slot_id, result)`, and `load_started` → `load_finished(slot_id, result)` or `load_failed(slot_id, code, message)`. A call that is refused at once (busy, or a guard says no) emits nothing.
+That's it. The chest is open again after loading. To keep rooms the player has left, read on.
 
-Every code has a short message in `StrongboxService.MESSAGES`:
+## The example project
+
+`example/` is a small playable demo built from plain shapes. It has:
+
+- a **Hub** with a bed that saves and a button that drops crates;
+- a **Cellar** with a chest, a coin and a lever;
+- an autosave on every room change;
+- a slot list with Save, Load and Delete.
+
+Open this repository in Godot 4.7 and press **F5**. `example/main.gd` is the game code, commented as you would write it.
+
+## Concepts
+
+### Saved nodes
+
+A node is saved when it's in the group `strongbox_persist`, or when it has a `StrongboxPersistComponent` child. Every other node is ignored.
+
+- **What is saved:** either the node implements `persist_capture()` and `persist_restore(data)`, or its component lists the property names to save (for example `["pulled"]`). Saved values must be plain data: numbers, strings, vectors, colors, arrays, dictionaries and the like. Objects, Callables and Resources are refused.
+- **Its id**, in order: the component's `persist_id`, the node's `strongbox_id` metadata, or its node path in the scene (`Props/Chest01`).
+- **Its scene key:** the scene root's `strongbox_scene_key` metadata, or its scene file path.
+
+### Rooms you have left
+
+`Strongbox.world` (a `StrongboxWorldStore`) keeps each room's state while the room is unloaded.
+
+- **The game's own scene changes** (not loads): call `Strongbox.world.stash_scene(room)` right before you unload a room, and `Strongbox.world.restore_scene(room)` once the new instance is ready. `Strongbox.load()` restores the loaded room itself.
+- **Picked-up items:** call `Strongbox.world.registry.mark_gone(node)` before freeing the node. That room's later saves list the id as gone, and the node is freed again whenever the room is restored. Saving never frees anything; restoring does.
+- **Items dropped at runtime:** add the node to the room, then call `Strongbox.world.register_spawned(node, "res://items/crate.tscn", room)`. On restore it is instanced again under the same parent, with the same transform and data.
+  - Scenes load only from folders you allow: `Strongbox.world.spawn_allow_prefixes = PackedStringArray(["res://items/"])`. Any other path in a save is refused.
+  - An allowed scene that no longer exists (removed in a later version) is skipped and listed in the restore result's `missing`; the rest of the room still loads.
+- **`StrongboxSceneWatcher`** is a helper node that stashes its parent room on exit and restores it when ready. **Don't use its `restore_on_ready` together with `Strongbox.load()`.** When the loaded save's room is the room you are already in, the old instance's stash would overwrite the loaded state before the new instance restores, bringing back stale picked-up items and dropped crates that the load can't undo.
+
+### Global state
+
+Save state that doesn't live in a room (a player profile, a quest log) with a provider:
+
+```gdscript
+Strongbox.register_provider(&"player",
+	func() -> Dictionary: return {"coins": coins},
+	func(data: Dictionary) -> void: coins = data.get("coins", 0))
+```
+
+- Providers restore in ascending `priority` (the fourth argument, default 0).
+- A provider with nothing in the save gets `{}`.
+- Data for a provider that isn't registered is kept and written back on the next save.
+- An optional fifth argument, `validate(data) -> String`, can refuse bad data before the load changes anything.
+- A restore may return a `StrongboxResult`. If it fails, the load stops and fails with that provider's error. What successful restores return is in `result.value["providers"]`.
+
+### Save guards
+
+```gdscript
+Strongbox.add_save_guard(&"cutscene", func() -> String:
+	return "a cutscene is playing" if in_cutscene else "")
+```
+
+While any guard returns a reason, `save()` is refused with `E_REFUSED` and the reasons, and nothing is written.
+
+### Slots
+
+Saves live under `user://saves/<slot_id>/` (`Strongbox.slots.store.root` changes the folder):
+
+- `save.json`, with backups `.bak1` and `.bak2`;
+- `meta.json`, for the load menu;
+- an optional `thumb.png`.
+
+Slot ids are 1 to 32 characters of `a-z`, `0-9`, `_` and `-`.
+
+- **`quick`** is the quicksave. **`auto_0`, `auto_1` and `auto_2`** are the autosave ring; `Strongbox.slots.next_autosave_id()` picks the next one.
+- **`Strongbox.slots.list()`** gives every slot's metadata, newest first, for a load menu. A slot that can't be read is listed as `damaged`, not hidden. **`latest()`** is the newest slot, for a "Continue" button. **`delete(slot_id)`** removes a slot.
+- **`write_thumbnail(slot_id, image)`** and **`read_thumbnail(slot_id)`** store an optional screenshot.
+
+### Migrations
+
+When your save data changes shape, bump `Strongbox.migrations.current_version` and register one step per version:
+
+```gdscript
+Strongbox.migrations.current_version = 2
+Strongbox.migrations.register(1, func(body: Dictionary) -> Dictionary:
+	var player: Dictionary = body["world"]["globals"].get("player", {})
+	if player.has("gold"):
+		player["coins"] = player["gold"]   # version 1 called it "gold"
+		player.erase("gold")
+	return body)
+```
+
+`load()` runs the steps in order before anything changes, and refuses a save from a newer version (`E_SCHEMA_TOO_NEW`). A step that hits a script error fails the load (`E_MIGRATION_FAILED`) instead of silently emptying the save. Steps must be **synchronous**: no `await`. `Strongbox.migrations.validate_chain()` checks that no step is missing.
+
+### Signals
+
+- Saving: `save_started(slot_id)`, then `save_finished(slot_id, result)`.
+- Loading: `load_started(slot_id)`, then either `load_finished(slot_id, result)` or `load_failed(slot_id, code, message)`.
+
+A call that is refused at once (busy, or a guard says no) emits nothing.
+
+## Error codes
+
+Every code has a short message: `StrongboxService.message_for(code)`.
 
 | Code | Message |
 | --- | --- |
@@ -147,13 +181,32 @@ Every code has a short message in `StrongboxService.MESSAGES`:
 | `E_SPAWN_PATH` | The save names a scene the game does not allow. |
 | `E_PROVIDER`, `E_BAD_DATA`, `E_DUPLICATE_ID`, `E_CAPTURE`, `E_SCENE_KEY`, `E_UNSUPPORTED_TYPE` | Part of the game state could not be saved or read. |
 
+## Good to know
+
+- **A load can fail after it has started changing the game.** Everything that can be checked is checked first: the file, the backups, migrations, the body, spawn paths and validators. A failure there leaves the running game untouched.
+
+  A failure after the scene change has begun leaves the game part-loaded. That includes `scene_changer` returning nothing, a provider's restore failing, or a room's restore failing. Treat a `load_failed` at that point as a failed load, for example by going back to the main menu. Loading again starts cleanly.
+- **`new_game()`** clears every room, dropped item, picked-up item, global and the playtime. Providers, guards and the spawn allow-list stay.
+- **Playtime:** `Strongbox.playtime_s` counts while the tree is not paused, and it is saved and restored.
+- **Load menu order:** the newest save first, by the time it was saved and then by write order. If the computer's clock is set back, only the order changes; no save is lost.
+- **Failed writes:** if the final step of a save fails, the previous save is put back. The oldest backup is lost in that case.
+- **Windows:** keep at least one backup (the default is two). With no backups, replacing a save isn't atomic on Windows.
+- **Limits:** dictionaries and arrays nest at most 64 deep, and all strings together hold at most 32 MB per save.
+- **Negative zero in GDScript:** a literal `-0.0` in the same function as a literal `0.0` is silently turned into `0.0` by the compiler. Strongbox saves `-0.0` exactly, but if your code depends on it, build it at run time from its bits (as `tests/fixtures/golden/golden_dataset.gd` does).
+
+The full file format is in [`docs/format.md`](docs/format.md).
+
+## Optional: the Wyrd bridge
+
+`addons/strongbox_wyrd/` saves the state of the [Wyrd](https://github.com/Trusdan/wyrd) narrative engine through Strongbox. It is a separate, optional folder; see [`docs/wyrd-bridge.md`](docs/wyrd-bridge.md).
+
 ## Requirements
 
 Godot 4.7 or newer. GDScript only: no C# or native code.
 
 ## Development
 
-The root `project.godot` is a small dev and test project for the addon. It enables the Strongbox and GUT plugins and is not part of a release. Its header is Godot's own, so opening the editor does not modify it.
+The root `project.godot` is a dev and test project. It enables the Strongbox and GUT plugins, runs the example as its main scene, and isn't part of a release. Its header is Godot's own, so opening the editor doesn't modify it.
 
 The Godot and GUT versions are pinned in `tools/pins.env`. With that Godot version on `PATH` as `godot`, run the tests with:
 
@@ -161,7 +214,11 @@ The Godot and GUT versions are pinned in `tools/pins.env`. With that Godot versi
 tools/run_tests.sh
 ```
 
-CI runs the full GUT suite on every pull request and every push to `main`, on both Ubuntu (job `test`) and Windows (job `test-windows`). The content-hygiene check and the editor-load check run on Ubuntu only.
+CI runs the full GUT suite on every pull request and every push to `main`:
+
+- **`test` (Ubuntu)** also runs the editor-load, content-hygiene and Wyrd pin checks;
+- **`test-windows`** runs the suite on Windows;
+- **`test-core-only`** runs the suite with the Wyrd bridge and the vendored Wyrd removed.
 
 Contributor rules are in [`CLAUDE.md`](CLAUDE.md). How tasks are handed to an AI coding agent is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 

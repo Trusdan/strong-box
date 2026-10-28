@@ -6,7 +6,8 @@ extends Node
 ## @experimental
 ## Use it as an autoload (for example named [code]Strongbox[/code]). The game owns scene changes:
 ## set [member scene_changer] to a function that loads a scene by key and returns its root once
-## it is ready. [method save] and [method load] are coroutines; call them with [code]await[/code].
+## it is ready. [method save] returns at once; [method load] is a coroutine, so call it with
+## [code]await[/code].
 ## Both return a [StrongboxResult]; every error code has a short message in [constant MESSAGES].
 ## [br][br]
 ## Signals fire in this order: [signal save_started] then [signal save_finished] (also on a
