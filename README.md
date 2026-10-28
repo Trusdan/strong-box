@@ -40,29 +40,40 @@ func persist_restore(data: Dictionary) -> void:
 
 The node keeps the same id in every instance of the scene (its path, unless you set one), so its state comes back to the right node.
 
-**2. Tell Strongbox how your game changes scenes**, once at start-up (for example in your main menu or a game autoload):
+**2. Add a small autoload for your game's save code.** Create `game.gd` and add it in **Project → Project Settings → Globals → Autoload** with the name **`Game`**, below `Strongbox`:
 
 ```gdscript
+# game.gd (autoload "Game")
+extends Node
+
 func _ready() -> void:
+	# Tell Strongbox how your game changes scenes.
 	Strongbox.scene_changer = func(scene_key: String) -> Node:
 		get_tree().change_scene_to_file(scene_key)
 		await get_tree().scene_changed
 		return get_tree().current_scene
+
+func save_game(slot_id: String) -> void:
+	var saved: StrongboxResult = Strongbox.save(slot_id)
+	if not saved.ok:
+		print(StrongboxService.message_for(saved.code))
+
+func load_game(slot_id: String) -> void:
+	var loaded: StrongboxResult = await Strongbox.load(slot_id)
+	if not loaded.ok:
+		print(StrongboxService.message_for(loaded.code))
 ```
 
-**3. Save and load:**
+**Why an autoload:** loading replaces the current scene. A `scene_changer` set by a node in that scene (a main menu, a player) stops working as soon as the node is freed, and the load fails with `E_SCENE_CHANGE`. The same goes for code that awaits `load()`. An autoload lives through scene changes, so both keep running.
+
+**3. Save and load** from anywhere, for example a menu button or a key press:
 
 ```gdscript
-var saved: StrongboxResult = Strongbox.save("slot1")
-if not saved.ok:
-	print(StrongboxService.message_for(saved.code))
-
-var loaded: StrongboxResult = await Strongbox.load("slot1")
-if not loaded.ok:
-	print(StrongboxService.message_for(loaded.code))
+Game.save_game("slot1")
+Game.load_game("slot1")
 ```
 
-`save()` returns at once. `load()` waits for your `scene_changer`, so call it with `await`. Every call returns a `StrongboxResult`: `ok`, `value`, a `code` such as `E_NO_SLOT`, and a `message`.
+`save()` returns at once. `load()` waits for your `scene_changer`, which is why `load_game` awaits it. Code in the old scene doesn't need to wait: `Game` finishes the load. To react when it's done, connect to `Strongbox.load_finished` or `Strongbox.load_failed` from an autoload or from the new scene. Every call returns a `StrongboxResult`: `ok`, `value`, a `code` such as `E_NO_SLOT`, and a `message`.
 
 That's it. The chest is open again after loading. To keep rooms the player has left, read on.
 
@@ -188,6 +199,7 @@ Every code has a short message: `StrongboxService.message_for(code)`.
 - **A load can fail after it has started changing the game.** Everything that can be checked is checked first: the file, the backups, migrations, the body, spawn paths and validators. A failure there leaves the running game untouched.
 
   A failure after the scene change has begun leaves the game part-loaded. That includes `scene_changer` returning nothing, a provider's restore failing, or a room's restore failing. Treat a `load_failed` at that point as a failed load, for example by going back to the main menu. Loading again starts cleanly.
+- **Call `load()` from a node that survives the scene change**, such as an autoload, and set `scene_changer` there too. Code in the old scene stops when that scene is freed, including anything after an `await Strongbox.load(...)` there.
 - **`new_game()`** clears every room, dropped item, picked-up item, global and the playtime. Providers, guards and the spawn allow-list stay.
 - **Playtime:** `Strongbox.playtime_s` counts while the tree is not paused, and it is saved and restored.
 - **Load menu order:** the newest save first, by the time it was saved and then by write order. If the computer's clock is set back, only the order changes; no save is lost.

@@ -2,7 +2,7 @@
 
 All notable changes to Strongbox. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Before 1.0, any minor version may change the API. Every public class is marked `@experimental` until then.
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-10-28
 
 The first release.
 

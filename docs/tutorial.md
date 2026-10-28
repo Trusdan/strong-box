@@ -16,7 +16,7 @@ strongbox.scene_changer = _change_room
 strongbox.current_scene_provider = func() -> Node: return _room
 ```
 
-The example changes rooms itself, by freeing one room scene and adding the other under a holder node. So it tells Strongbox both how to change scenes (`_change_room`) and which node is the current room. `_change_room(scene_key)` instances the room for that key (its scene file path), waits a frame, and returns the new room.
+The example changes rooms itself, by freeing one room scene and adding the other under a holder node. `main.gd` sits above the rooms and is never replaced, so it can set `scene_changer` and await `load()` safely. In a game that replaces the whole scene, put this code in an autoload, as the README's quick start does. So it tells Strongbox both how to change scenes (`_change_room`) and which node is the current room. `_change_room(scene_key)` instances the room for that key (its scene file path), waits a frame, and returns the new room.
 
 ## 2. Rooms you have left
 
