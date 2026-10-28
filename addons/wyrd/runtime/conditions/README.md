@@ -1,0 +1,9 @@
+# conditions
+
+Runtime condition index and stack evaluator. The language is `docs/language.md#conditions`.
+
+`WyrdDepIndex` maps exact fact keys and `{id}` patterns to condition indexes. It is built from each condition's `reads` and is never saved. A pattern matches the whole key. A computed segment stays a wildcard.
+
+`WyrdRpnEval` walks a compiled instruction array. A missing fact makes a comparison false. An optional `fact_reader` supplies keys the dictionary does not hold. Load-time plans are rebuilt from the saved program and are not written back. `tests/support/wyrd_rpn_eval.gd` is a thin shim over this class.
+
+`WyrdConditionCtx` wires the slice built-ins to the fact store and the adapters. Under a generated instance scope (`<template>#<n>`), `holder`, `filled`, and `slot_state` read that instance's casts and params. A hand-written quest still resolves a shared slot through the first row. `chance` inside that scope rolls on `<template>#<n>:<site>` when the condition's record is the template id or one of its sites. `holder` uses the role stub outside an instance. `deed_count` returns 0 until the deed log exists. `chance` uses `WyrdRng.for_decision` on the `chance` stream. `knows` and `known` read a role reveal or `known/<agent>`. `believes` is the truthy belief, `belief` is the value, and `held` reads one group. `conflicted` is true when the agent's groups hold different values for one key. `perceived(agent, verb)` returns the latest `saw`, `heard`, or `inferred` mode. `nearby` counts spatial ids. `has` is a positive inventory `count`. `progress(id)` and `done(id)` read a sequence; an unknown id is an error and yields 0 or false. `active_count(template)` counts active generated instances of that template. An unknown id is 0 and logs nothing. A missing adapter returns 0 or false. A lookup logs `belief_lookup` when tracing is on. A conflict resolution logs `conflict`. A knowledge change logs `knowledge`. A witness mode logs `perception`.
