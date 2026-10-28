@@ -25,6 +25,8 @@ Global providers restore in ascending priority. The default of **100** restores 
 
 Whatever Wyrd's stable `save_state()` returns: its facts, quests, roles, deeds and the rest of its play state. Strongbox stores that Dictionary as the `wyrd` entry of the save's globals and doesn't look inside it. Wyrd checks it on load and reports what it changed.
 
+If a save has no `wyrd` entry (for example, one made before the bridge was installed), the bridge skips the restore and leaves Wyrd's current state as it is. Resetting the story is the game's call, not the bridge's.
+
 ## What is refused, and why
 
 | Case | Result | Why |
@@ -37,7 +39,7 @@ Whatever Wyrd's stable `save_state()` returns: its facts, quests, roles, deeds a
 
 Wyrd's warnings (for example ids it kept but doesn't declare) don't fail a restore. They are listed in `bridge.last_result.value["warnings"]`, and the full report is in `bridge.last_report`.
 
-**Current limit:** the core service ignores what a provider's restore returns. So a failed Wyrd restore is pushed as an error and recorded in `bridge.last_result`, but it doesn't yet fail `Strongbox.load()`, and the warnings don't yet reach the load result. That needs a small core change, which is proposed separately.
+**Current limit:** the core service ignores what a provider's restore returns. So a failed Wyrd restore is pushed as an error and recorded in `bridge.last_result`, but it doesn't yet fail `Strongbox.load()`, and the warnings don't yet reach the load result. The core change for this is tracked separately. The bridge already returns the right result, so it needs no change when that lands.
 
 ## Stable API only
 
