@@ -240,6 +240,25 @@ func test_newer_schema_or_invalid_globals_are_refused_before_any_live_change() -
 	assert_eq(_changes, changes_before)
 
 
+func test_a_failed_provider_restore_fails_the_load_and_values_pass_through() -> void:
+	await _go(CELLAR_PATH)
+	var verdict: Array[StrongboxResult] = [StrongboxResult.success({"warnings": ["W_OLD"]})]
+	_service.register_provider(&"story", func() -> Dictionary: return {"stage": 2},
+		func(_data: Dictionary) -> StrongboxResult: return verdict[0], 100)
+	assert_true((await _service.save("slot1")).ok)
+	var loaded: StrongboxResult = await _service.load("slot1")
+	assert_true(loaded.ok, str(loaded))
+	assert_eq(loaded.value["providers"], {"story": {"warnings": ["W_OLD"]}}, "the profile provider returns nothing, so only story is listed")
+
+	verdict[0] = StrongboxResult.failure(&"E_PROVIDER", "the story data was refused")
+	watch_signals(_service)
+	var failed: StrongboxResult = await _service.load("slot1")
+	assert_eq(failed.code, &"E_PROVIDER")
+	assert_string_contains(failed.message, "Provider \"story\": the story data was refused")
+	assert_signal_emitted_with_parameters(_service, "load_failed", ["slot1", failed.code, failed.message])
+	assert_signal_not_emitted(_service, "load_finished")
+
+
 func test_signals_fire_in_order() -> void:
 	await _go(CELLAR_PATH)
 	watch_signals(_service)

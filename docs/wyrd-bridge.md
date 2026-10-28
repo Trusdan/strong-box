@@ -34,12 +34,23 @@ If a save has no `wyrd` entry (for example, one made before the bridge was insta
 | Saving while a dialogue scene is open | `E_REFUSED` with "A dialogue scene is open" | Wyrd can't save mid-scene: `save_state()` returns `{}` and refuses. |
 | Wyrd returns no data when captured | The save fails with `E_PROVIDER` | Storing an empty Wyrd state would wipe the story on the next load. |
 | The saved `wyrd` entry is not a Dictionary | The load fails with `E_INVALID_GLOBALS` before anything changes | It can't be Wyrd data. Deeper checks are Wyrd's. |
-| Wyrd's `load_state()` reports an error | The bridge's restore returns `E_PROVIDER` with Wyrd's error codes, and pushes that error | Wyrd refused or partly refused the data. |
+| Wyrd's `load_state()` reports an error | `Strongbox.load()` fails with `E_PROVIDER`, a message naming Wyrd's error codes, and the codes in `result.value["codes"]`. The bridge logs the error once. | Wyrd refused or partly refused the data. |
 | A save with no `wyrd` entry (made before the bridge was installed) | Skipped: Wyrd is left as it is | There is nothing to restore. |
 
-Wyrd's warnings (for example ids it kept but doesn't declare) don't fail a restore. They are listed in `bridge.last_result.value["warnings"]`, and the full report is in `bridge.last_report`.
+Wyrd's warnings (for example ids it kept but doesn't declare) don't fail a restore. They reach the load result as `result.value["providers"]["wyrd"]["warnings"]`. The bridge also keeps them in `bridge.last_result`, and the full report in `bridge.last_report`.
 
-**Current limit:** the core service ignores what a provider's restore returns. So a failed Wyrd restore is pushed as an error and recorded in `bridge.last_result`, but it doesn't yet fail `Strongbox.load()`, and the warnings don't yet reach the load result. The core change for this is tracked separately. The bridge already returns the right result, so it needs no change when that lands.
+## How a provider failure affects `load()`
+
+This applies to every global provider, not only Wyrd.
+
+- **A restore may return a `StrongboxResult`.** A failed one stops the restore:
+  - later providers are not called;
+  - `Strongbox.load()` returns that failure, with the provider's own code and value and the message `Provider "<name>": <message>`;
+  - `load_failed` is emitted.
+
+  Strongbox doesn't log it again, so the provider logs its own error (the bridge does, once).
+- **What successful restores return is passed through** in `result.value["providers"]`, keyed by provider name. A restore that returns nothing has no entry, so existing providers are unaffected.
+- **This happens after the scene change has begun**, so the game is part-way through the load. Treat a failed load at this point like any other failed load, for example by returning to the main menu. Loading the save again, or another save, starts cleanly.
 
 ## Stable API only
 

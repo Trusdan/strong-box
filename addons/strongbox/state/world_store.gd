@@ -139,7 +139,8 @@ func register_spawned(node: Node, scene_path: String, scene_root: Node = null) -
 
 
 ## Adds a global provider. [param capture] takes no arguments and returns a Dictionary;
-## [param restore] takes that Dictionary. Providers restore in ascending [param priority].
+## [param restore] takes that Dictionary and may return a [StrongboxResult] (see
+## [method restore_globals]). Providers restore in ascending [param priority].
 ## @experimental
 func register_provider(provider_name: StringName, capture: Callable, restore: Callable, priority: int = 0) -> StrongboxResult:
 	if provider_name == &"" or not capture.is_valid() or not restore.is_valid():
@@ -172,8 +173,14 @@ func capture_globals() -> StrongboxResult:
 
 
 ## Stores [param data] in [member globals] and gives each provider its part, in ascending
-## priority (then by name). A provider with no data gets [code]{}[/code]. On success
-## [member StrongboxResult.value] is the provider names in the order they were called.
+## priority (then by name). A provider with no data gets [code]{}[/code].
+## [br][br]
+## A restore may return a [StrongboxResult]. A failed one stops here: later providers are not
+## called, and that result is returned with its code and value, the message prefixed with the
+## provider's name. It is not logged again; the provider logs its own error. On success
+## [member StrongboxResult.value] is [code]{"order": [names], "results": {name: value}}[/code]:
+## the providers in the order they were called, and the value of each successful
+## [StrongboxResult] a restore returned. A restore that returns nothing has no entry.
 ## @experimental
 func restore_globals(data: Dictionary) -> StrongboxResult:
 	for provider_name: Variant in data:
@@ -181,10 +188,18 @@ func restore_globals(data: Dictionary) -> StrongboxResult:
 			return StrongboxResult.failure(E_BAD_DATA, "Global data for \"%s\" is not a dictionary." % provider_name)
 	globals = data.duplicate(true)
 	var order: Array[String] = _provider_order()
+	var results: Dictionary = {}
 	for provider_name: String in order:
 		var part: Dictionary = globals.get(provider_name, {})
-		(_providers[provider_name]["restore"] as Callable).call(part.duplicate(true))
-	return StrongboxResult.success(order)
+		var returned: Variant = (_providers[provider_name]["restore"] as Callable).call(part.duplicate(true))
+		if returned is StrongboxResult:
+			var outcome: StrongboxResult = returned
+			if not outcome.ok:
+				var failed: StrongboxResult = StrongboxResult.failure(outcome.code, "Provider \"%s\": %s" % [provider_name, outcome.message])
+				failed.value = outcome.value
+				return failed
+			results[provider_name] = outcome.value
+	return StrongboxResult.success({"order": order, "results": results})
 
 
 ## Returns the whole store as plain, codec-safe data for a save body. Stash the current scene
