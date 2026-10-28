@@ -123,6 +123,11 @@ jobs:
             | grep -E '^(Scripts|Tests|Passing Tests|Asserts) ' | tr -s ' ' | paste -sd ',' -)"
           echo "::notice title=GUT on Ubuntu::${totals}"
 
+      # docs/api/ is generated from the ## doc comments; fail if a comment changed without
+      # regenerating it (run tools/gen_api_docs.sh and commit the result).
+      - name: API docs are up to date
+        run: tools/gen_api_docs.sh --check
+
       # Opens the project in the editor (headless) with the Strongbox and GUT plugins
       # enabled. Fails on a non-zero exit, on any ERROR / SCRIPT ERROR line, or if
       # project.godot is not in Godot's own format (the GUI editor would rewrite it).

@@ -69,6 +69,10 @@ func register(from_version: int, step: Callable) -> StrongboxResult:
 ## On success [member StrongboxResult.value] is [code]{"body": Dictionary, "version": int,
 ## "report": Array}[/code], where each report entry is [code]{"from": n, "to": n + 1}[/code]
 ## for a step applied. [param body] itself is never changed.
+## [br][br]
+## Any error Godot logs while a step runs fails that step with [constant E_MIGRATION_FAILED],
+## including an error another thread happens to log at the same moment. Steps must be
+## synchronous (no [code]await[/code]).
 ## @experimental
 func run(body: Dictionary, from_version: int) -> StrongboxResult:
 	if from_version > current_version:

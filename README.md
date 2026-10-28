@@ -2,7 +2,7 @@
 
 A generic save and load addon for Godot 4. Versioned save files, save slots, crash-safe writes, and a world that remembers rooms the player has left.
 
-> **Status: 0.0.1, before the first release.** Everything works and is tested on Linux and Windows. The API may still change before 1.0, so every public class is marked `@experimental`.
+> **Status: 0.1.0, the first release.** Everything works and is tested on Linux and Windows. The API may still change before 1.0, so every public class is marked `@experimental`. Changes are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Features
 
@@ -75,7 +75,7 @@ That's it. The chest is open again after loading. To keep rooms the player has l
 - an autosave on every room change;
 - a slot list with Save, Load and Delete.
 
-Open this repository in Godot 4.7 and press **F5**. `example/main.gd` is the game code, commented as you would write it.
+Open this repository in Godot 4.7 and press **F5**. `example/main.gd` is the game code, commented as you would write it. [`docs/tutorial.md`](docs/tutorial.md) walks through it.
 
 ## Concepts
 
@@ -112,7 +112,7 @@ Strongbox.register_provider(&"player",
 - A provider with nothing in the save gets `{}`.
 - Data for a provider that isn't registered is kept and written back on the next save.
 - An optional fifth argument, `validate(data) -> String`, can refuse bad data before the load changes anything.
-- A restore may return a `StrongboxResult`. If it fails, the load stops and fails with that provider's error. What successful restores return is in `result.value["providers"]`.
+- A restore may return a `StrongboxResult`. If it fails, the load stops and fails with that provider's error, and later providers aren't called. Providers restore **after the scene change has begun**, so this failure leaves the game part-loaded: treat it like any late `load_failed` (see "Good to know"). What successful restores return is in `result.value["providers"]`.
 
 ### Save guards
 
@@ -152,6 +152,8 @@ Strongbox.migrations.register(1, func(body: Dictionary) -> Dictionary:
 ```
 
 `load()` runs the steps in order before anything changes, and refuses a save from a newer version (`E_SCHEMA_TOO_NEW`). A step that hits a script error fails the load (`E_MIGRATION_FAILED`) instead of silently emptying the save. Steps must be **synchronous**: no `await`. `Strongbox.migrations.validate_chain()` checks that no step is missing.
+
+While a step runs, **any** error logged by Godot counts as that step failing, including an error another thread happens to log at the same moment. Such a load fails with `E_MIGRATION_FAILED` and the other thread's message, but nothing is changed and loading again works. Run loads while your own worker threads are quiet. This trade-off is deliberate: a broken step must never silently empty a save.
 
 ### Signals
 
@@ -196,6 +198,13 @@ Every code has a short message: `StrongboxService.message_for(code)`.
 
 The full file format is in [`docs/format.md`](docs/format.md).
 
+## More documentation
+
+- [`docs/tutorial.md`](docs/tutorial.md) walks through the example: rooms you have left, picked-up items, dropped items, a save guard and a migration.
+- [`docs/api/`](docs/api/index.md) has a page for every class, generated from the code's doc comments.
+- [`docs/format.md`](docs/format.md) describes the save file format and crash safety.
+- [`docs/RELEASE.md`](docs/RELEASE.md) is the maintainer's release checklist.
+
 ## Optional: the Wyrd bridge
 
 `addons/strongbox_wyrd/` saves the state of the [Wyrd](https://github.com/Trusdan/wyrd) narrative engine through Strongbox. It is a separate, optional folder; see [`docs/wyrd-bridge.md`](docs/wyrd-bridge.md).
@@ -216,9 +225,11 @@ tools/run_tests.sh
 
 CI runs the full GUT suite on every pull request and every push to `main`:
 
-- **`test` (Ubuntu)** also runs the editor-load, content-hygiene and Wyrd pin checks;
+- **`test` (Ubuntu)** also runs the API-docs, editor-load, content-hygiene and Wyrd pin checks;
 - **`test-windows`** runs the suite on Windows;
 - **`test-core-only`** runs the suite with the Wyrd bridge and the vendored Wyrd removed.
+
+After changing a `##` doc comment in `addons/strongbox/`, run `tools/gen_api_docs.sh` and commit `docs/api/`. CI fails if `docs/api/` is out of date (`tools/gen_api_docs.sh --check`).
 
 Contributor rules are in [`CLAUDE.md`](CLAUDE.md). How tasks are handed to an AI coding agent is in [`docs/HANDOFF.md`](docs/HANDOFF.md).
 
