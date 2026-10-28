@@ -1,0 +1,20 @@
+# compiler
+
+Lexer, block parser, fact-schema check, condition compiler, and statement compiler. No editor dependency: nothing here uses `EditorInterface` or any other editor-only API.
+
+Pipeline for one file:
+
+1. **Lex.** `WyrdLexer` tokenizes one UTF-8 source: two-space indent, `//` comments, `#line:` ids, `#tag:` names, `#secrecy:` names, quoted titles, and prose escapes. `variant <holder>:` is prose after the colon.
+2. **Block parse.** `WyrdParser` builds a file node, top-level `facts`, `events`, `role`, `quest`, `scene`, `storylet`, `sequence`, and `template` blocks, and a generic statement-line tree. A `role` block is code, like `facts`. Its fields are compiled by `WyrdStatements` into a `WyrdRoleDef`. A `storylet` block is code except for dash prose lines, and compiles to a `WyrdStoryletDef`. `wyrd check` prints each storylet's specificity as `info[I_STORYLET_SCORE]`. Ranking is runtime. A `sequence` block compiles to a `WyrdSequenceDef`. A stage `region` compiles to a `WyrdRegionDef`, and nesting past depth 2 warns `W_SUBSTATE_DEPTH`.
+3. **Facts check.** Each `facts` entry becomes a `WyrdFact` on a `WyrdFactSchema`: type, stored or resolved, optional `recap: true` or `recap: false`, optional invalidation, and an optional trailing `doc` string. `lookup` finds a concrete key first, then a `{id}` pattern. A missing `recap:` key stays unmarked.
+4. **Conditions.** `WyrdCondition` lexes, parses, type-checks, and emits one expression to a `WyrdCompiledCondition` (a flat instruction array, constants, reads, and specificity). `nearby`, `can_perceive`, and `can_reach` are `E_SPATIAL_CONTEXT` in a wait unless the caller allows them. The language is `docs/language.md#conditions`. `WyrdInterp` compiles the raw `{...}` spans the block lexer already kept.
+5. **Statements.** `WyrdStatements` walks the quest and scene tree into plain records (`WyrdQuestDef`, `WyrdSceneDef`, `WyrdEffectDef`, and the rest under `stmt/`). Prose goes through `WyrdInterp`. The language is `docs/language.md#statements`.
+6. **Link.** `WyrdPack` merges fact schemas, then `WyrdLinker` checks cross-file quests, scenes, speakers, commands, and line ids. A slot used by a reachable stage with no `variant <slot>.empty` and no quest `on_empty` warns `W_EMPTY_UNCOVERED`. A `locked_at` slot with no reachable `locked_gone` variant warns `W_LOCKED_GONE_UNCOVERED`. A branch whose every reachable outcome is `route_closed` warns `W_ROUTE_CLOSED`. Prose that interpolates `holder(slot)` where that slot can be empty warns `W_HOLDER_UNGUARDED`, unless a `when` requires `filled(slot)` or an empty variant replaces that branch. A pair of storylets that can tie warns `W_STORYLET_TIE`. A `template` block compiles like a quest: a bad field is `E_TEMPLATE_SYNTAX`, its score is `info[I_TEMPLATE_SCORE]`, a pair that can tie warns `W_TEMPLATE_TIE`, naming a template where a quest or instance is meant is `E_TEMPLATE_REF`, and `active_count` of an id that names no template and no quest is `E_TEMPLATE_UNKNOWN`. A template `on_deed` hook compiles in the wait context with `deed.actor`, `deed.target`, `deed.place`, and `deed.magnitude`. `check --pressure-tiers` warns `W_TEMPLATE_TIER_UNKNOWN` and `W_TEMPLATE_TIER_ORDER`. `WyrdFactXref` builds the fact cross-reference. A concrete stored `set` or `inc` in a stage that sets an outcome, or on a choice, warns `W_RECAP_UNMARKED` when that fact has no `recap:` key. `recap: false` silences it. A directory with no manifest is one pack named after the folder. `WyrdContentManifest` lists the files of a real pack.
+
+`WyrdSource` maps a code-point offset to a line and column. `WyrdDiagnostics` formats lines as `path:line:col: error[CODE]: message`, and the same shape for `warning` and `info`.
+
+```bash
+godot --headless --path . -s res://addons/wyrd/cli/wyrd_cli.gd -- check --manifest example/content/gullhaven/harbor.wyrdmanifest.tres
+```
+
+`check` compiles and links the pack. It exits 1 on an error. Warnings exit 0 unless `--strict`.

@@ -66,6 +66,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      # addons/wyrd/ is a test-only copy of a Wyrd release; it must match tools/wyrd-pin.env exactly.
+      - name: Vendored Wyrd matches its pin
+        run: tools/check_wyrd_pin.sh
+
       - name: Install pinned Godot
         run: |
           set -euo pipefail
