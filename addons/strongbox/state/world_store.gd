@@ -11,7 +11,7 @@ extends RefCounted
 ## a player profile) comes from providers added with [method register_provider].
 ## [method to_dict] and [method from_dict] turn the whole store into plain data for a save body.
 
-## A spawn path is not under [member spawn_allow_prefixes], or does not load as a scene.
+## A spawn path is not under [member spawn_allow_prefixes].
 const E_SPAWN_PATH: StringName = &"E_SPAWN_PATH"
 ## [method register_spawned] was given a node that is not inside the scene root.
 const E_SPAWN: StringName = &"E_SPAWN"
@@ -65,7 +65,9 @@ func stash_scene(scene_root: Node) -> StrongboxResult:
 ## Restores the stored entry into [param scene_root], a fresh instance that is ready. Spawned
 ## nodes are instanced again under their old parent. A scene with no entry is left as it is.
 ## On success [member StrongboxResult.value] is [code]{"restored", "missing", "freed",
-## "spawned"}[/code], each a list of ids. Every spawn path is checked before anything changes.
+## "spawned"}[/code], each a list of ids. Every spawn path is checked against the allow-list
+## before anything changes. An allowed path that does not load as a scene is skipped and listed
+## in [code]missing[/code] as [code]"<id> (<path>)"[/code].
 ## @experimental
 func restore_scene(scene_root: Node) -> StrongboxResult:
 	var key: String = StrongboxPersist.scene_key_of(scene_root)
@@ -93,7 +95,10 @@ func restore_scene(scene_root: Node) -> StrongboxResult:
 			continue
 		var packed: PackedScene = load(record["scene_path"]) as PackedScene # strongbox: allow-load (res:// allow-list checked)
 		if packed == null:
-			return StrongboxResult.failure(E_SPAWN_PATH, "%s: \"%s\" is not a scene." % [id, record["scene_path"]])
+			# Allowed but gone (for example removed in a later game version): skip it and report
+			# it, so the rest of the room still loads. It is dropped at the next stash.
+			report["missing"].append("%s (%s)" % [id, record["scene_path"]])
+			continue
 		var node: Node = packed.instantiate()
 		node.set_meta(StrongboxPersist.META_SPAWN_ID, id)
 		parent.add_child(node)

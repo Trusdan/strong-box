@@ -156,6 +156,27 @@ func test_spawn_paths_outside_the_allow_list_are_refused() -> void:
 	assert_eq(room.get_node("Items").get_child_count(), 0)
 
 
+func test_allowed_spawn_that_no_longer_loads_is_skipped_and_reported() -> void:
+	var store: StrongboxWorldStore = _store()
+	var gone_path: String = SPAWN_FOLDER + "removed_item.tscn"
+	var records: Array[Dictionary] = [
+		{"id": "spawn_1", "parent": "Items", "scene_path": gone_path, "transform": null, "data": {}},
+		{"id": "spawn_2", "parent": "Items", "scene_path": ITEM_PATH, "transform": DROP_AT, "data": {"item_name": "rope", "count": 1}},
+	]
+	assert_true(store.from_dict({"scenes": {HUB_PATH: {"nodes": {}, "gone": [], "spawned": records}}, "globals": {}, "next_spawn": 3}).ok)
+	var hub: Node3D = HUB.instantiate()
+	add_child(hub)
+	var restored: StrongboxResult = store.restore_scene(hub)
+	# Godot logs three errors for a missing resource: two name the file, one is its internal check.
+	assert_engine_error("Cannot open file")
+	assert_engine_error("Failed loading resource")
+	assert_true(restored.ok, str(restored))
+	assert_eq(restored.value["missing"], ["spawn_1 (%s)" % gone_path] as Array[String])
+	assert_eq(restored.value["spawned"], ["spawn_2"] as Array[String], "the rest of the room still loads")
+	_leave(hub, store)
+	assert_eq(store.scenes[HUB_PATH]["spawned"].size(), 1, "the skipped record is dropped at the next stash")
+
+
 func test_providers_restore_by_priority_with_missing_and_unknown_data() -> void:
 	var store: StrongboxWorldStore = _store()
 	var calls: Array[String] = []

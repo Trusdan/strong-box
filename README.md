@@ -95,6 +95,58 @@ var result := migrations.run({"hp": 80, "room": "Cellar"}, 1)
 
 Strongbox's own file `format_version` is separate from your `schema_version`. It has its own internal step table, which is empty while the format is at version 1.
 
+## Saving and loading
+
+`StrongboxService` is a Node that ties the pieces together. Add it as an autoload (for example named `Strongbox`) and give it two functions from your game:
+
+- **`scene_changer`** `(scene_key: String) -> Node` changes to a scene in your own way (fades, loading screen) and returns the new scene root once it is ready. It may be a coroutine.
+- **`current_scene_provider`** `() -> Node` returns the current scene root. It defaults to the tree's `current_scene`.
+
+```gdscript
+Strongbox.scene_changer = func(scene_key: String) -> Node:
+	get_tree().change_scene_to_file(scene_key)
+	await get_tree().scene_changed
+	return get_tree().current_scene
+Strongbox.world.spawn_allow_prefixes = PackedStringArray(["res://items/"])
+Strongbox.add_save_guard(&"cutscene", func() -> String:
+	return "a cutscene is playing" if in_cutscene else "")
+
+var saved: StrongboxResult = await Strongbox.save("slot1", {"location": "Cellar"})
+var loaded: StrongboxResult = await Strongbox.load("slot1")
+if not loaded.ok:
+	print(StrongboxService.message_for(loaded.code))
+```
+
+- **`save(slot_id, label = {})`** checks the guards, stashes the current scene, captures globals, and writes the slot. If it fails, the world store is left as it was.
+- **`load(slot_id)`** does its checks first, before anything in the running game changes:
+  - reads the slot, falling back to a backup;
+  - upgrades the body with `migrations`;
+  - checks the whole body, including spawn paths and each provider's optional `validate` (passed to `Strongbox.register_provider`).
+
+  Only after that does it replace the world store, call `scene_changer`, restore globals in priority order, and restore the scene. `result.value["source"]` says whether a backup was used.
+- **`new_game()`** clears the world store and playtime.
+- **`playtime_s`** counts while the tree is not paused. It is saved in the header and restored on load.
+- **Signals:** `save_started` → `save_finished(slot_id, result)`, and `load_started` → `load_finished(slot_id, result)` or `load_failed(slot_id, code, message)`. A call that is refused at once (busy, or a guard says no) emits nothing.
+
+Every code has a short message in `StrongboxService.MESSAGES`:
+
+| Code | Message |
+| --- | --- |
+| `E_BUSY` | A save or load is already running. |
+| `E_REFUSED` | Saving is not allowed right now. (The guards' reasons follow.) |
+| `E_NO_SCENE` | There is no current scene to save. |
+| `E_BAD_BODY` | The save is missing data it needs. |
+| `E_INVALID_GLOBALS` | Part of the save was refused by the game. |
+| `E_SCENE_CHANGE` | The game could not change to the saved scene. |
+| `E_BAD_SLOT` / `E_NO_SLOT` | That is not a valid slot name. / There is no save in that slot. |
+| `E_NO_VALID_SAVE` | The save and all its backups are damaged. |
+| `E_WRITE`, `E_VERIFY`, `E_RENAME`, `E_DISK`, `E_BAD_PATH` | The save could not be written (see the message for which step). |
+| `E_SCHEMA_TOO_NEW` / `E_SCHEMA_TOO_OLD` | This save is from a newer version of the game. / This save is too old for this version of the game. |
+| `E_SCHEMA_GAP` / `E_MIGRATION_FAILED` | This save cannot be upgraded. |
+| `E_FORMAT_TOO_NEW` | This save is from a newer version of Strongbox. |
+| `E_SPAWN_PATH` | The save names a scene the game does not allow. |
+| `E_PROVIDER`, `E_BAD_DATA`, `E_DUPLICATE_ID`, `E_CAPTURE`, `E_SCENE_KEY`, `E_UNSUPPORTED_TYPE` | Part of the game state could not be saved or read. |
+
 ## Requirements
 
 Godot 4.7 or newer. GDScript only: no C# or native code.
