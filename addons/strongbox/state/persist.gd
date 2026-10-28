@@ -26,6 +26,9 @@ const GROUP: StringName = &"strongbox_persist"
 const META_ID: StringName = &"strongbox_id"
 ## Scene-root metadata that overrides the scene key.
 const META_SCENE_KEY: StringName = &"strongbox_scene_key"
+## Metadata [StrongboxWorldStore] puts on a node instanced at runtime. The registry skips such
+## a node and everything under it; the world store saves it instead.
+const META_SPAWN_ID: StringName = &"strongbox_spawn_id"
 ## The method a saved node implements to return its state.
 const CAPTURE_METHOD: StringName = &"persist_capture"
 ## The method a saved node implements to restore its state.
