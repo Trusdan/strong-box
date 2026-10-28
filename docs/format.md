@@ -230,7 +230,7 @@ A leftover `<path>.tmp` is never read. `read_verified` deletes it only if it is 
 - **Windows:** if the target exists, `DirAccess.rename_absolute` first deletes it, then calls `MoveFileW` (`drivers/windows/dir_access_windows.cpp`, lines 340–346). So replacing a file is **not** atomic there, and a crash between the two calls leaves no file. Strongbox avoids this: step 3 moves the current file to `.bak1` first, so the step 4 rename never has an existing target. The exception is `backup_count = 0`, where the rename does replace the file and Windows has that gap. Keep at least one backup on Windows.
 - **Flushing:** `FileAccess.flush()` calls `fflush()` only, on both platforms (`drivers/unix/file_access_unix.cpp`, line 331; `drivers/windows/file_access_windows.cpp`, line 378). Godot offers no `fsync`. A crash of the game is fully covered, but after a **power cut** the operating system may not yet have written the newest file to disk. The backups are the protection against that.
 
-CI runs on Linux only. The Windows behaviour above comes from Godot's source and has not been tested on Windows.
+CI runs the full test suite on Linux and on Windows. The rename and flush behaviour above comes from Godot's source; a crash in the middle of a write is not simulated on either platform.
 
 ### Path safety
 
@@ -247,6 +247,30 @@ Every path must resolve, after `simplify_path()`, to a file **inside** `root` (d
 | `E_BAD_PATH` | The path is not a file inside `root`. |
 | `E_NO_VALID_SAVE` | Neither the file nor any backup unpacks cleanly. |
 | `E_MISSING` | Only in `read_verified`'s failure list: that file does not exist. |
+
+## Cross-platform golden fixtures
+
+`tests/fixtures/golden/` holds the output of `pack` for a fixed dataset (`golden_dataset.gd`). The dataset covers every allowed type, tricky reals (`-0.0`, `0.1`, `1e308`, the smallest subnormal, `INF`, `-INF`, NaN with and without a payload), fixed-seed random doubles in both real forms, int64 limits, non-BMP strings, nested and escaped containers, and every packed array. There are two files:
+
+- `dataset.sbgolden`: default header values;
+- `dataset_header.sbgolden`: meta, `schema_version`, `game_version` and `playtime_s` set.
+
+`tests/test_cross_platform_fixtures.gd` runs in both CI jobs (Linux and Windows) and checks that:
+
+- `pack` gives the committed bytes exactly;
+- each file unpacks to the dataset with the same types, with reals compared bit for bit;
+- each checksum validates.
+
+So a save written on one platform reads back identically on the other. The files are marked `-text` in `.gitattributes` so Git never changes their line endings.
+
+**Regenerating** is a deliberate act and never happens in a test run:
+
+```bash
+godot --headless --path . -s res://tools/regenerate_golden_fixtures.gd             # check only: exits 1 if a file differs
+godot --headless --path . -s res://tools/regenerate_golden_fixtures.gd -- --write  # rewrite the files
+```
+
+Regenerate only when the dataset or the format changes on purpose, and say in the pull request which platform produced the new files. In GDScript, build `-0.0` from its bits rather than writing the literal: the compiler merges constants that compare equal, so a literal `-0.0` in the same function as a literal `0.0` becomes `0.0`.
 
 ## Choices that differ from the original task
 
