@@ -44,6 +44,57 @@ for entry in slots.list():
 	print(entry["slot_id"], " ", entry["label"].get("location", ""), " ", entry["saved_unix"])
 ```
 
+## Migrations
+
+Games change their save data over time. `StrongboxMigrations` lets old saves keep loading by upgrading them through small, ordered steps.
+
+- **`current_version`** is the save `schema_version` your game writes now. Bump it whenever the save body changes shape.
+- **`register(from_version, step)`** adds one step. `step` takes the body as a Dictionary and returns the upgraded Dictionary, from `from_version` to `from_version + 1`. Each version can have only one step.
+- **`run(body, from_version)`** applies every step from the save's version up to `current_version`, in order. It works on a deep copy, so `body` is never changed. On success, `result.value` holds:
+  - `body`: the upgraded body;
+  - `version`: the version it's now at;
+  - `report`: one `{"from", "to"}` entry per step applied.
+
+  Running it on a body that is already at `current_version` changes nothing.
+- **`min_supported_version`** is the oldest schema your game still loads. **`validate_chain()`** checks that no step is missing between it and `current_version`. Call it once at start-up, or in a test.
+
+`run` refuses, without changing anything:
+
+| Code | When |
+| --- | --- |
+| `E_SCHEMA_TOO_NEW` | The save is from a newer game version. |
+| `E_SCHEMA_TOO_OLD` | The save is older than `min_supported_version`. |
+| `E_SCHEMA_GAP` | A step between the save's version and `current_version` is not registered. |
+| `E_MIGRATION_FAILED` | A step returned something other than a Dictionary, or hit a script error. The message names the step, for example "schema 2 to 3". |
+
+A script error inside a step is caught, not ignored. In GDScript, a function declared `-> Dictionary` that fails returns an empty Dictionary, and a save body must never be silently emptied that way.
+
+### Worked example
+
+Version 1 stored the player's health as `hp`. Version 2 renamed it to `health`. Version 3 added `stamina`, with a default of 50.
+
+```gdscript
+var migrations := StrongboxMigrations.new()
+migrations.current_version = 3
+
+migrations.register(1, func(body: Dictionary) -> Dictionary:
+	body["health"] = body.get("hp", 100)
+	body.erase("hp")
+	return body)
+
+migrations.register(2, func(body: Dictionary) -> Dictionary:
+	body["stamina"] = body.get("stamina", 50)
+	return body)
+
+assert(migrations.validate_chain().ok)
+
+var result := migrations.run({"hp": 80, "room": "Cellar"}, 1)
+# result.value["body"]   == {"health": 80, "room": "Cellar", "stamina": 50}
+# result.value["report"] == [{"from": 1, "to": 2}, {"from": 2, "to": 3}]
+```
+
+Strongbox's own file `format_version` is separate from your `schema_version`. It has its own internal step table, which is empty while the format is at version 1.
+
 ## Requirements
 
 Godot 4.7 or newer. GDScript only: no C# or native code.
