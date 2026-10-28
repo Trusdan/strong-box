@@ -1,7 +1,7 @@
 class_name StrongboxResult
 extends RefCounted
 
-## The outcome of a Strongbox operation: a value on success, or an error code and message.
+## The outcome of a Strongbox operation (SCRATCH: docs not regenerated).
 ##
 ## @experimental
 ## Strongbox reports errors through this object instead of pushing engine errors or
