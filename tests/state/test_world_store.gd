@@ -205,6 +205,36 @@ func test_providers_restore_by_priority_with_missing_and_unknown_data() -> void:
 	assert_eq(store.restore_globals({"profile": 5}).code, StrongboxWorldStore.E_BAD_DATA)
 
 
+func test_a_failed_provider_restore_stops_and_successful_values_pass_through() -> void:
+	var store: StrongboxWorldStore = _store()
+	assert_eq(store.restore_globals({}).value, {"order": [] as Array[String], "results": {}}, "no providers")
+	var calls: Array[String] = []
+	store.register_provider(&"clock", func() -> Dictionary: return {},
+		func(_data: Dictionary) -> void: calls.append("clock"), -1)
+	store.register_provider(&"profile", func() -> Dictionary: return {},
+		func(data: Dictionary) -> StrongboxResult:
+			calls.append("profile")
+			return StrongboxResult.success({"level": data.get("level", 0)}))
+	var restored: StrongboxResult = store.restore_globals({"profile": {"level": 4}})
+	assert_true(restored.ok, str(restored))
+	assert_eq(restored.value["results"], {"profile": {"level": 4}}, "a void restore has no entry")
+
+	store.register_provider(&"story", func() -> Dictionary: return {},
+		func(_data: Dictionary) -> StrongboxResult:
+			calls.append("story")
+			var refused: StrongboxResult = StrongboxResult.failure(&"E_STORY", "stage 9 is unknown")
+			refused.value = {"codes": ["E_STAGE"]}
+			return refused, 5)
+	store.register_provider(&"zz_late", func() -> Dictionary: return {},
+		func(_data: Dictionary) -> void: calls.append("zz_late"), 10)
+	calls.clear()
+	var failed: StrongboxResult = store.restore_globals({})
+	assert_eq(failed.code, &"E_STORY", "the provider's own code")
+	assert_eq(failed.message, "Provider \"story\": stage 9 is unknown")
+	assert_eq(failed.value, {"codes": ["E_STAGE"]})
+	assert_eq(calls, ["clock", "profile", "story"] as Array[String], "later providers are not called")
+
+
 func test_scene_watcher_restores_on_ready_and_stashes_on_exit() -> void:
 	var store: StrongboxWorldStore = _store()
 	var cellar: Node3D = _with_watcher(CELLAR.instantiate(), store)

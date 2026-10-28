@@ -76,6 +76,26 @@ func test_failed_report_fails_the_restore_with_wyrd_codes() -> void:
 	assert_push_error("E_ROW")
 
 
+func test_failed_wyrd_restore_fails_the_service_load_and_logs_once() -> void:
+	assert_true((await _service.save("slot1")).ok)
+	_wyrd.next_report = FakeWyrd.report(false, {&"E_SAVE_SCHEMA": &"error"})
+	var loaded: StrongboxResult = await _service.load("slot1")
+	assert_eq(loaded.code, &"E_PROVIDER", "KAN-181 AC1: a failed Wyrd restore fails load()")
+	assert_string_contains(loaded.message, "Provider \"wyrd\"")
+	assert_string_contains(loaded.message, "E_SAVE_SCHEMA")
+	assert_eq(loaded.value["codes"], ["E_SAVE_SCHEMA"] as Array[String])
+	assert_push_error("E_SAVE_SCHEMA")
+	assert_push_error_count(1, "logged once, by the bridge")
+
+
+func test_wyrd_warnings_reach_the_load_result() -> void:
+	assert_true((await _service.save("slot1")).ok)
+	_wyrd.next_report = FakeWyrd.report(true, {&"W_UNKNOWN_FACT": &"warning"})
+	var loaded: StrongboxResult = await _service.load("slot1")
+	assert_true(loaded.ok, str(loaded))
+	assert_eq(loaded.value["providers"]["wyrd"]["warnings"], ["W_UNKNOWN_FACT"] as Array[String])
+
+
 func test_warnings_are_passed_through_and_empty_data_is_skipped() -> void:
 	_wyrd.next_report = FakeWyrd.report(true, {&"W_UNKNOWN_FACT": &"warning"})
 	var restored: StrongboxResult = _bridge.restore(_wyrd.state)

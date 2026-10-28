@@ -164,8 +164,10 @@ func save(slot_id: String, label: Dictionary = {}) -> StrongboxResult:
 ## and only then replaces the world store, changes to the saved scene through
 ## [member scene_changer], restores globals and restores the scene. If anything fails before
 ## that, the running game is untouched. On success [member StrongboxResult.value] is
-## [code]{"source", "failures", "migrated", "scene_key", "restore"}[/code]; [code]source[/code]
-## is [code]"main"[/code] or the backup used, and [code]failures[/code] lists the files skipped.
+## [code]{"source", "failures", "migrated", "scene_key", "restore", "providers"}[/code];
+## [code]source[/code] is [code]"main"[/code] or the backup used, [code]failures[/code] lists the
+## files skipped, and [code]providers[/code] holds what successful provider restores returned.
+## A provider restore that returns a failed [StrongboxResult] fails the load with that result.
 ## @experimental
 func load(slot_id: String) -> StrongboxResult:
 	if _busy:
@@ -263,6 +265,7 @@ func _load_steps(slot_id: String) -> StrongboxResult:
 		"migrated": upgraded.value["report"],
 		"scene_key": key,
 		"restore": restored.value,
+		"providers": globals_result.value["results"],
 	})
 
 
