@@ -15,7 +15,7 @@ func before_each() -> void:
 	_example = MAIN.instantiate()
 	_example.save_root = _root
 	add_child_autofree(_example)
-	assert_true(await wait_until(func() -> bool: return _example.room() != null, 5), "the example starts in a room")
+	assert_true(await wait_until(func() -> bool: return _example.is_started(), 5), "the example starts in a room")
 
 
 func after_each() -> void:
@@ -74,11 +74,15 @@ func test_save_then_load_round_trip_with_the_example_nodes() -> void:
 func test_autosave_on_room_change_slot_list_and_guard() -> void:
 	await _example.go_to(_example.CELLAR)
 	assert_true(_example.strongbox.slots.exists("auto_0"), "changing room autosaves")
-	var start: Callable = func() -> void: await _example.go_to(_example.HUB)
+	var arrived: Array[bool] = [false]
+	var start: Callable = func() -> void:
+		await _example.go_to(_example.HUB)
+		arrived[0] = true
 	start.call() # Waits a frame in the middle of the room change.
 	var refused: StrongboxResult = _example.strongbox.save("slot9")
 	assert_eq(refused.code, StrongboxService.E_REFUSED, "no saving while travelling")
-	await wait_until(func() -> bool: return _example.room().name == "Hub", 5)
+	# Wait for the whole room change, not just the new room: the guard is on until it ends.
+	assert_true(await wait_until(func() -> bool: return arrived[0], 5), "the room change finishes")
 	assert_true(_example.save_slot("slot1").ok)
 	assert_true(_example.strongbox.slots.exists("slot1"))
 	_example.delete_slot("slot1")

@@ -10,6 +10,9 @@ const ROOMS: Dictionary = {HUB: preload("res://example/rooms/hub.tscn"), CELLAR:
 const CRATE: PackedScene = preload("res://example/items/crate.tscn")
 const CRATE_PATH: String = "res://example/items/crate.tscn"
 
+## Emitted once the example has entered its first room.
+signal started
+
 ## Where the example keeps its saves. Tests point it somewhere else.
 @export var save_root: String = "user://strongbox_example"
 
@@ -20,6 +23,7 @@ var coins: int = 0
 
 var _room: Node3D = null
 var _changing: bool = false
+var _started: bool = false
 var _holder: Node3D = Node3D.new()
 var _info: Label = Label.new()
 var _status: Label = Label.new()
@@ -49,8 +53,9 @@ func _ready() -> void:
 	add_child(_holder)
 	_build_ui()
 	strongbox.new_game()
-	_room = await _change_room(HUB)
-	_refresh()
+	await _change_room(HUB)
+	_started = true
+	started.emit()
 
 
 ## Moves the player to the room [param scene_key]: stash this room, change, restore, autosave.
@@ -126,6 +131,11 @@ func delete_slot(slot_id: String) -> void:
 ## The current room.
 func room() -> Node3D:
 	return _room
+
+
+## True once the example has entered its first room.
+func is_started() -> bool:
+	return _started
 
 
 func _change_room(scene_key: String) -> Node:
