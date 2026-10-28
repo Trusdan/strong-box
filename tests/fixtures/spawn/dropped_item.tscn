@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/fixtures/spawn/dropped_item.gd" id="1_c6pdk"]
+
+[node name="DroppedItem" type="Node3D" unique_id=525302551]
+script = ExtResource("1_c6pdk")

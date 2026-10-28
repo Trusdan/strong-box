@@ -123,6 +123,16 @@ func gone_ids(scene_key: String) -> Array[String]:
 	return _sorted_keys(_gone.get(scene_key, {}))
 
 
+## Records [param ids] as gone in the scene [param scene_key], as [method mark_gone] does for a
+## node. Used to bring back tombstones from saved data.
+## @experimental
+func add_gone_ids(scene_key: String, ids: Array) -> void:
+	var gone: Dictionary = _gone.get(scene_key, {})
+	for id: Variant in ids:
+		gone[str(id)] = true
+	_gone[scene_key] = gone
+
+
 ## Forgets every recorded tombstone (for a new game).
 ## @experimental
 func clear() -> void:
@@ -136,6 +146,8 @@ func _find_nodes(scene_root: Node) -> StrongboxResult:
 	var stack: Array[Node] = [scene_root]
 	while not stack.is_empty():
 		var node: Node = stack.pop_back()
+		if node.has_meta(StrongboxPersist.META_SPAWN_ID):
+			continue # Saved by StrongboxWorldStore, with everything under it.
 		for child: Node in node.get_children():
 			stack.append(child)
 		if node is StrongboxPersistComponent:
