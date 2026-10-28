@@ -8,3 +8,5 @@
 *.tres text eol=lf
 *.png binary
 *.ttf binary
+# Golden save fixtures: compared byte for byte on every platform, so Git must never convert them.
+*.sbgolden -text
