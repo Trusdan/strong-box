@@ -226,6 +226,22 @@ static func read_version() -> String:
 	return file.get_as_text().strip_edges()
 
 
+## Id of a runtime, or 0 when [param host] is null.
+## Sub-objects the runtime already owns store this id instead of the runtime.
+## A strong back-reference would keep the runtime alive after its owner drops it.
+static func _host_id(host: Object) -> int:
+	if host == null:
+		return 0
+	return host.get_instance_id()
+
+
+## Runtime for an id from [method _host_id], or null when that runtime is gone.
+static func _host_from(id: int) -> WyrdRuntime:
+	if id == 0:
+		return null
+	return instance_from_id(id) as WyrdRuntime
+
+
 func config() -> WyrdConfig:
 	return _config
 

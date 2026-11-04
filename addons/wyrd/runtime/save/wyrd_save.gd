@@ -180,6 +180,9 @@ static func check(runtime: WyrdRuntime, data: Dictionary) -> Dictionary:
 	var report := WyrdLoadReport.new()
 	var content := runtime.content()
 	if content == null:
+		var missing := _listed_pack_ids(data)
+		if not missing.is_empty():
+			return _refused(report, WyrdDiagnostic.E_CONTENT_MISSING, _missing_content_message(missing), "content")
 		return _refused(report, WyrdDiagnostic.E_SAVE_VERSION, "load content before loading a save", "content")
 	# An older schema is copied in full before migrations rewrite it. A current
 	# schema shares deed-row dictionaries: later steps only read them, or copy
@@ -367,6 +370,37 @@ static func check_shape(doc: Dictionary, facts: WyrdFactStore = null) -> Array:
 	if issue.is_empty():
 		return []
 	return [String(issue.get("message", ""))]
+
+
+static func _listed_pack_ids(data: Dictionary) -> PackedStringArray:
+	var content_value: Variant = data.get("content", {})
+	if not (content_value is Dictionary):
+		return PackedStringArray()
+	var listed: Variant = (content_value as Dictionary).get("packs", [])
+	if not (listed is Array):
+		return PackedStringArray()
+	var seen := {}
+	for item in listed:
+		if not (item is Dictionary):
+			continue
+		var id := str((item as Dictionary).get("id", "")).strip_edges()
+		if id.is_empty():
+			continue
+		seen[id] = true
+	var names: Array = seen.keys()
+	names.sort()
+	var out := PackedStringArray()
+	for name in names:
+		out.append(String(name))
+	return out
+
+
+static func _missing_content_message(ids: PackedStringArray) -> String:
+	var quoted := PackedStringArray()
+	for id in ids:
+		quoted.append("\"%s\"" % id)
+	var noun := "pack" if ids.size() == 1 else "packs"
+	return "content not loaded; missing %s %s" % [noun, ", ".join(quoted)]
 
 
 static func _refused(report: WyrdLoadReport, code: StringName, message: String, id: String) -> Dictionary:

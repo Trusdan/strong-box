@@ -16,7 +16,11 @@ extends RefCounted
 ## fails the quest instead. [method start] ignores [code]start when[/code].
 ## [method advance] leaves through the same path as a transition, including a
 ## stage that is still waiting. [code]on_empty: wait[/code] holds a stage when a
-## slot is empty and no variant matched. Journal text and its date are frozen
+## slot that stage references is empty or contested and no variant matched. A
+## reference is a scene [code]with[/code] name, a variant slot, or a
+## [code]holder[/code], [code]filled[/code], or [code]slot_state[/code] call in
+## a step or condition, including variant bodies and region stages.
+## [method WyrdStageDef.mark_coverage] is that walk. Journal text and its date are frozen
 ## at the write. The default date is [code]day N, HH:MM[/code].
 ## [method summary] returns the frozen journal entries joined in order, or
 ## validated cached summary text, and does not write the journal. An
@@ -54,8 +58,14 @@ const _HOP_LIMIT := 24
 ## Returned while a region step list defers a top-level advance. Not a stage id.
 const _LIFT := "\u0001"
 
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
 ## @experimental
-var runtime: WyrdRuntime
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 var _states: Dictionary = {}
 var _declared: Dictionary = {}
 var _fired: Dictionary = {}
@@ -1346,7 +1356,7 @@ func _pick(quest_id: String, quest: WyrdQuestDef, stage: WyrdStageDef) -> Dictio
 			"hold": false,
 			"key": "%s.%s" % [chosen.slot, String(chosen.state)],
 		}
-	if quest.on_empty == "wait" and _any_empty(quest_id, quest):
+	if quest.on_empty == "wait" and _any_empty(quest_id, quest, stage):
 		return {"body": null, "hold": true, "key": ""}
 	return {"body": stage, "hold": false, "key": ""}
 
@@ -1358,8 +1368,14 @@ func _variant_index(stage: WyrdStageDef, variant: WyrdVariantDef) -> int:
 	return -1
 
 
-func _any_empty(quest_id: String, quest: WyrdQuestDef) -> bool:
+func _any_empty(quest_id: String, quest: WyrdQuestDef, stage: WyrdStageDef) -> bool:
+	var used := {}
+	WyrdStageDef.mark_coverage(stage, used, {}, {})
+	if used.is_empty():
+		return false
 	for slot in quest.slots:
+		if slot.name.is_empty() or not used.has(slot.name):
+			continue
 		var state: StringName = runtime.roles.resolve_slot(quest_id, StringName(slot.name), false)["state"]
 		if state == &"empty" or state == &"contested":
 			return true

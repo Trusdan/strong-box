@@ -25,7 +25,13 @@ extends RefCounted
 var record_id: String = ""
 var site: String = ""
 
-var _runtime: WyrdRuntime
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
+var _runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 var _belief_hot_ok: bool = false
 var _belief_hot_agent: StringName = &""
 var _belief_hot_key: StringName = &""

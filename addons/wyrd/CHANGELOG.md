@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 1.0.1 - 2026-11-04
+
+Bugfix release. `addons/wyrd/VERSION` and `plugin.cfg` are `1.0.1`. Save schema stays 4. The stable surface is unchanged. `E_CONTENT_MISSING` is on `WyrdDiagnostic`, which is `@experimental`, so this is a patch and not 1.1.0. The tag `v1.0.1` is cut only on request.
+
+- **Fixed:** An empty save slot waits again, and Continue stays disabled for that wait.
+- **Fixed:** A freed runtime stayed alive through reference cycles. Sub-objects stored a strong reference back to the runtime, so the graph stayed alive after the facade was freed. Those back-references now store an instance id.
+- **Fixed:** `on_empty: wait` holds a stage only when a slot that stage references is empty or contested and no variant matched. A reference is a scene `with` name, a variant slot, or a `holder`, `filled`, or `slot_state` call in a step or condition, including variant bodies and region stages. `WyrdStageDef.mark_coverage` is the walk `W_EMPTY_UNCOVERED` and the quest runner share. A quest that used to wait because some other slot was empty now continues.
+- **Added:** `E_CONTENT_MISSING` when a save lists content packs and no content is loaded. The message names those pack ids. A schema mismatch with content loaded stays `E_SAVE_VERSION`. A save with no packs and no content loaded stays `E_SAVE_VERSION`.
+- **Behaviour change:** A stage that references no slot now proceeds under `on_empty: wait` even when the quest has empty slots. Use `waits_until` to keep such a stage waiting. The linker's `W_EMPTY_UNCOVERED` now also counts `holder`, `filled`, and `slot_state` references in steps and conditions, so `check` may report new warnings on existing content.
+
 ## 1.0.0 - 2026-10-24
 
 1.0 release (M12 PRs 1–8: #122–#128 and this PR). `addons/wyrd/VERSION` is `1.0.0`. `plugin.cfg` version is `1.0.0`. The stable surface, the save promise, the deprecation policy, and the support note are in `docs/stability.md`. Save schema stays 4, and 1.0.0 loads every schema 1–4 save. `known` is removed; use `knows`. Benchmarks are informational and do not gate 1.0. Known: the `load.time` median was 1.336 s at the `v0.9.0-m11` tag run (`bench/TREND.md`) and 1.142 s → 0.891 s locally after the M12 load-time pass (`bench/README.md`); the `v1.0.0` tag run records the 1.0.0 number. The tag `v1.0.0` and the first GitHub Release are cut only on request.

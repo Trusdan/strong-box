@@ -20,7 +20,13 @@ extends RefCounted
 signal topic_unlocked(topic: StringName)
 signal outcome_changed(quest_id: String, branch: StringName, value: StringName)
 
-var runtime: WyrdRuntime
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 var quest_id: String = ""
 var scene_id: String = ""
 var choice_id: String = ""

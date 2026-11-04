@@ -2,6 +2,12 @@
 
 All notable changes to Strongbox. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). Before 1.0, any minor version may change the API. Every public class is marked `@experimental` until then.
 
+## [Unreleased]
+
+### Changed
+
+- **Vendored Wyrd v1.0.1** (2026-11-04): `addons/wyrd/` is Wyrd v1.0.1. An empty save slot waits and Continue stays disabled, and a reference-cycle leak is fixed. `on_empty: wait` holds a stage only when a slot that stage references is empty or contested. Save schema stays 4.
+
 ## [0.1.0] - 2026-10-28
 
 The first release.
