@@ -15,7 +15,13 @@ extends RefCounted
 ## [code]gossip[/code]. [method summary_for] returns a journal summary.
 ## [method host_text] reads cached text for a host-called kind and does not send.
 
-var _runtime: WyrdRuntime
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
+var _runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 var _provider: WyrdAIProvider
 var _enabled: bool = true
 var _next_id: int = 1

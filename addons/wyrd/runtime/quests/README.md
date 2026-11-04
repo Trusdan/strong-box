@@ -6,7 +6,7 @@ A generated instance id is `<template>#<n>`. The counter is the last `n` for tha
 
 Statuses: `dormant`, `available`, `active`, `completed`, `failed`, `abandoned`, `unavailable`. A true `start when` becomes `available` and then `active` in the same check. There is no accept step.
 
-Entry steps (journal, effect, scene offer) run in source order, once. A variant whose slot state matches replaces that body. `on_empty: wait` holds the stage when a slot is empty and no variant matched. `Wyrd.quests.summary(quest)` returns those frozen journal entries joined in order, or validated cached journal-summary text.
+Entry steps (journal, effect, scene offer) run in source order, once. A variant whose slot state matches replaces that body. `on_empty: wait` holds the stage when a slot that stage references is empty or contested and no variant matched. A reference is a scene `with` name, a variant slot, or a `holder`, `filled`, or `slot_state` call in a step or condition, including variant bodies and region stages. `Wyrd.quests.summary(quest)` returns those frozen journal entries joined in order, or validated cached journal-summary text.
 
 `waiting_reason` is `host:<screen>`, `scene:<id>`, `waits_until: <text>`, `on_empty`, or empty.
 

@@ -27,8 +27,14 @@ signal scene_ended(scene_id: String, status: StringName, reason: StringName)
 ## @experimental
 signal topic_answered(npc: StringName, topic: StringName, line: WyrdLineView)
 
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
 ## @experimental
-var runtime: WyrdRuntime
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 ## @experimental
 var locale: String = ""
 var _text: WyrdText

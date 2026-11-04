@@ -10,7 +10,13 @@ extends RefCounted
 ## closes. A finished sequence stays finished until its reset. A reset event is
 ## handled before a step on that same emit, so the reset does not also count.
 
-var runtime: WyrdRuntime
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 var _defs: Dictionary = {}
 var _rows: Dictionary = {}
 

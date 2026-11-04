@@ -46,8 +46,14 @@ var provenance_of: Callable = Callable()
 ## [code](fields, line)[/code]. Records one choice-summary read when tracing is on.
 ## @experimental
 var on_choice_summary: Callable = Callable()
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
 ## @experimental
-var runtime: WyrdRuntime
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 
 var _schema: WyrdFactSchema
 var _world: Dictionary = {}

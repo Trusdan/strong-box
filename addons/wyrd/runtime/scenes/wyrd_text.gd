@@ -17,7 +17,13 @@ extends RefCounted
 ## The default date is [code]day N, HH:MM[/code] from game minutes, day 1 at
 ## minute 0, 1440 minutes per day. A host formatter replaces it for new text.
 
-var runtime: WyrdRuntime
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 ## How many times a translated template was compiled. Not saved.
 var compile_count: int = 0
 var _collapsed: bool = false

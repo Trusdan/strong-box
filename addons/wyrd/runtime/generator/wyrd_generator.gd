@@ -13,8 +13,14 @@ var generate_handler: Callable = Callable()
 var config_of: Callable = Callable()
 ## @experimental
 var trace_of: Callable = Callable()
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
 ## @experimental
-var runtime: WyrdRuntime = null
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 
 var _offers: Array[Dictionary] = []
 var _proposals: Dictionary = {}

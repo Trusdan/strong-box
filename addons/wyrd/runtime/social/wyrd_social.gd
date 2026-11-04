@@ -21,7 +21,13 @@ extends RefCounted
 ## Entries refill on read. The cache is not saved.
 
 var deeds: WyrdDeedLog
-var runtime: WyrdRuntime
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 var config_of: Callable = Callable()
 var formula: Callable = Callable()
 var on_changed: Callable = Callable()

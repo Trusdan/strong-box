@@ -990,17 +990,6 @@ func _line_regions(stage: WyrdStageDef, path: String, seen: Dictionary) -> void:
 			_line_stage(child, path, seen)
 
 
-func _cover_regions(stage: WyrdStageDef, used: Dictionary, empty_covered: Dictionary, gone_covered: Dictionary) -> void:
-	if stage == null:
-		return
-	for item in stage.regions:
-		var region := item as WyrdRegionDef
-		if region == null:
-			continue
-		for child in region.stages:
-			_mark_coverage(child, used, empty_covered, gone_covered)
-
-
 func _line_stage(stage: WyrdStageDef, path: String, seen: Dictionary) -> void:
 	for journal in stage.journals:
 		_take_line(seen, journal.line_id, path, journal.line, journal.col)
@@ -1255,7 +1244,7 @@ func _warn_empty(quest: WyrdQuestDef, path: String) -> void:
 	var empty_covered := {}
 	var gone_covered := {}
 	for stage in reachable:
-		_mark_coverage(stage, used, empty_covered, gone_covered)
+		WyrdStageDef.mark_coverage(stage, used, empty_covered, gone_covered)
 	if quest.on_empty.is_empty():
 		for slot in quest.slots:
 			if slot.name.is_empty() or not used.has(slot.name) or empty_covered.has(slot.name):
@@ -1519,30 +1508,6 @@ func _note_advance(effect: WyrdEffectDef, found: Dictionary) -> void:
 	if not found.has(effect.quest):
 		found[effect.quest] = {}
 	found[effect.quest][effect.stage] = true
-
-
-func _mark_coverage(stage: WyrdStageDef, used: Dictionary, empty_covered: Dictionary, gone_covered: Dictionary) -> void:
-	if stage == null:
-		return
-	for ref in stage.scenes:
-		for entry in ref.get("with", []):
-			var name := str(entry.get("name", ""))
-			if not name.is_empty():
-				used[name] = true
-	for item in stage.variants:
-		var variant := item as WyrdVariantDef
-		if variant == null:
-			continue
-		if not variant.slot.is_empty():
-			used[variant.slot] = true
-		# contested falls back to the empty variant, so it does not cover empty.
-		if variant.state == &"empty":
-			empty_covered[variant.slot] = true
-		elif variant.state == &"locked_gone":
-			gone_covered[variant.slot] = true
-		if variant.body != null:
-			_mark_coverage(variant.body, used, empty_covered, gone_covered)
-	_cover_regions(stage, used, empty_covered, gone_covered)
 
 
 func _mark_routes(stage: WyrdStageDef, branches: Dictionary) -> void:

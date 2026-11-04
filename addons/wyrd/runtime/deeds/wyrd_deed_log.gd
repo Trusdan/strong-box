@@ -25,8 +25,14 @@ extends RefCounted
 ## Fires with the deed row that was just stored.
 signal deed_recorded(deed: Dictionary)
 
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
 ## @experimental
-var runtime: WyrdRuntime
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 
 ## Scale used when returned sums are rounded to 6 decimal places.
 const ROUND_SCALE: float = 1000000.0

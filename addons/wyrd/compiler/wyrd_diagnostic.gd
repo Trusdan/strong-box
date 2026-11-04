@@ -125,6 +125,8 @@ const W_SUBSTATE_DEPTH: StringName = &"W_SUBSTATE_DEPTH"
 const E_SAVE_OPEN: StringName = &"E_SAVE_OPEN"
 const E_SAVE_POLICY: StringName = &"E_SAVE_POLICY"
 const E_SAVE_VERSION: StringName = &"E_SAVE_VERSION"
+## A save lists content packs and no content is loaded. The message names the pack ids.
+const E_CONTENT_MISSING: StringName = &"E_CONTENT_MISSING"
 const W_SAVE_MANIFEST: StringName = &"W_SAVE_MANIFEST"
 const W_SAVE_TEMPLATE: StringName = &"W_SAVE_TEMPLATE"
 const W_SAVE_AI: StringName = &"W_SAVE_AI"

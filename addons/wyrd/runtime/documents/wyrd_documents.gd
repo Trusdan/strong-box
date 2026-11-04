@@ -14,8 +14,14 @@ extends RefCounted
 ## Fires after a successful open, including whether this reader is new.
 signal document_read(doc_id: StringName, copy_id: String, reader: StringName, first_time: bool)
 
+## Non-owning. The runtime already references this object.
+var _runtime_id: int = 0
 ## @experimental
-var runtime: WyrdRuntime
+var runtime: WyrdRuntime:
+	get:
+		return WyrdRuntime._host_from(_runtime_id)
+	set(value):
+		_runtime_id = WyrdRuntime._host_id(value)
 
 var _read: Dictionary = {}
 var _copies: Dictionary = {}
